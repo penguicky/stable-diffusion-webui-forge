@@ -1726,3 +1726,240 @@ body.resizing .resize-handle {
         background-position: 200% 0; 
     }
 }
+
+/* Intelligent Thumbnail Loader Styles */
+/* Add this to: style.css (append to existing file) */
+
+/* Loading states for thumbnail cards */
+.card.thumbnail-loading {
+    position: relative;
+    background-color: var(--background-fill-secondary, #f8f9fa);
+    border: 1px solid var(--border-color-primary, #e0e0e0);
+}
+
+.card.thumbnail-loaded {
+    background-color: transparent;
+}
+
+.card.thumbnail-error {
+    background-color: var(--background-fill-secondary, #f8f9fa);
+    border: 1px solid var(--error-border-color, #ff6b6b);
+}
+
+/* Loading indicator overlay */
+.thumbnail-loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4px);
+}
+
+.dark .thumbnail-loading-indicator {
+    background: rgba(30, 30, 30, 0.9);
+    color: white;
+}
+
+/* Loading spinner animation */
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border-color-primary, #e0e0e0);
+    border-top: 3px solid var(--primary-500, #0066cc);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.dark .loading-spinner {
+    border-color: #444;
+    border-top-color: var(--primary-400, #66b3ff);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Loading text */
+.loading-text {
+    font-size: 12px;
+    color: var(--body-text-color, #333);
+    font-weight: 500;
+}
+
+.dark .loading-text {
+    color: #ccc;
+}
+
+/* Error indicator */
+.thumbnail-error-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 245, 245, 0.95);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #ffebee;
+    backdrop-filter: blur(4px);
+}
+
+.dark .thumbnail-error-indicator {
+    background: rgba(40, 20, 20, 0.95);
+    border-color: #5d4037;
+}
+
+.error-icon {
+    font-size: 24px;
+}
+
+.error-text {
+    font-size: 12px;
+    color: var(--error-text-color, #d32f2f);
+    font-weight: 500;
+    text-align: center;
+}
+
+.dark .error-text {
+    color: #ff8a80;
+}
+
+/* Smooth transitions for thumbnail loading */
+.card img {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.card.thumbnail-loading img {
+    opacity: 0.3;
+}
+
+.card.thumbnail-loaded img {
+    opacity: 1;
+}
+
+/* Pulse animation for placeholder background images */
+.card.thumbnail-loading {
+    background-size: 200% 200%;
+    animation: placeholder-pulse 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-pulse {
+    0% {
+        background-position: 200% 0%;
+    }
+    50% {
+        background-position: -200% 0%;
+    }
+    100% {
+        background-position: 200% 0%;
+    }
+}
+
+/* Performance optimizations */
+.extra-network-cards {
+    /* Enable hardware acceleration for smooth scrolling */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    
+    /* Optimize scrolling performance */
+    overflow-anchor: auto;
+    scroll-behavior: smooth;
+}
+
+.card {
+    /* Optimize card rendering */
+    contain: layout style paint;
+    transform: translateZ(0);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .thumbnail-loading-indicator,
+    .thumbnail-error-indicator {
+        padding: 12px;
+        border-radius: 6px;
+    }
+    
+    .loading-spinner {
+        width: 20px;
+        height: 20px;
+        border-width: 2px;
+    }
+    
+    .loading-text,
+    .error-text {
+        font-size: 11px;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .thumbnail-loading-indicator {
+        background: white;
+        border: 2px solid black;
+    }
+    
+    .loading-spinner {
+        border-color: #666;
+        border-top-color: black;
+    }
+    
+    .loading-text {
+        color: black;
+        font-weight: bold;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+        animation: none;
+        border-top-color: transparent;
+    }
+    
+    .card.thumbnail-loading {
+        animation: none;
+        background: var(--background-fill-secondary, #f8f9fa);
+    }
+    
+    .card img,
+    .card {
+        transition: none;
+    }
+}
+
+/* Focus styles for accessibility */
+.card:focus-visible {
+    outline: 2px solid var(--primary-500, #0066cc);
+    outline-offset: 2px;
+}
+
+/* Loading state for different card sizes */
+.extra-network-cards.thumbs .thumbnail-loading-indicator {
+    padding: 8px;
+}
+
+.extra-network-cards.thumbs .loading-spinner {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+.extra-network-cards.thumbs .loading-text,
+.extra-network-cards.thumbs .error-text {
+    font-size: 10px;
+}
