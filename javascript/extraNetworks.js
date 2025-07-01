@@ -902,3 +902,250 @@ onUiLoaded(function() {
 });
 
 uiAfterScriptsCallbacks.push(setupExtraNetworks);
+
+/**
+ * Progressive Loading for Extra Network Cards
+ * Improves performance by loading cards as user scrolls
+ */
+
+class ProgressiveCardLoader {
+    constructor(container, options = {}) {
+        this.container = container;
+        this.config = {
+            initialCards: options.initialCards || 30,
+            batchSize: options.batchSize || 20,
+            scrollThreshold: options.scrollThreshold || 0.7,
+            minCards: options.minCards || 50,
+            ...options
+        };
+        
+        this.cards = [];
+        this.loadedCount = 0;
+        this.isLoading = false;
+        
+        this.init();
+    }
+    
+    init() {
+        // Get all cards
+        this.cards = Array.from(this.container.querySelectorAll('.card'));
+        
+        // Only enable for large collections
+        if (this.cards.length < this.config.minCards) {
+            console.log(`Progressive loading skipped for ${this.container.id}: only ${this.cards.length} cards`);
+            return;
+        }
+        
+        console.log(`Setting up progressive loading for ${this.container.id} (${this.cards.length} cards)`);
+        
+        // Initially show first batch
+        this.showInitialCards();
+        
+        // Setup scroll listener
+        this.setupScrollListener();
+        
+        // Mark as initialized
+        this.container.dataset.progressiveLoading = 'true';
+        
+        console.log(`✅ Progressive loading active: ${this.loadedCount}/${this.cards.length} cards initially visible`);
+    }
+    
+    showInitialCards() {
+        const initialCount = Math.min(this.config.initialCards, this.cards.length);
+        
+        this.cards.forEach((card, index) => {
+            if (index < initialCount) {
+                card.style.display = '';
+                delete card.dataset.progressiveHidden;
+            } else {
+                card.style.display = 'none';
+                card.dataset.progressiveHidden = 'true';
+            }
+        });
+        
+        this.loadedCount = initialCount;
+    }
+    
+    setupScrollListener() {
+        // Throttled scroll handler
+        let scrollTimeout;
+        
+        this.container.addEventListener('scroll', () => {
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            
+            scrollTimeout = setTimeout(() => {
+                this.handleScroll();
+            }, 100);
+        });
+    }
+    
+    handleScroll() {
+        // Don't load if already loading or all cards loaded
+        if (this.isLoading || this.loadedCount >= this.cards.length) {
+            return;
+        }
+        
+        // Check scroll position
+        const scrollPercent = this.container.scrollTop / (this.container.scrollHeight - this.container.clientHeight);
+        
+        if (scrollPercent > this.config.scrollThreshold) {
+            this.loadNextBatch();
+        }
+    }
+    
+    loadNextBatch() {
+        this.isLoading = true;
+        
+        const remainingCards = this.cards.length - this.loadedCount;
+        const batchSize = Math.min(this.config.batchSize, remainingCards);
+        
+        // Show next batch
+        for (let i = this.loadedCount; i < this.loadedCount + batchSize; i++) {
+            const card = this.cards[i];
+            if (card && card.dataset.progressiveHidden) {
+                card.style.display = '';
+                delete card.dataset.progressiveHidden;
+            }
+        }
+        
+        this.loadedCount += batchSize;
+        console.log(`Loaded ${batchSize} more cards (${this.loadedCount}/${this.cards.length})`);
+        
+        // Brief delay before allowing next load
+        setTimeout(() => {
+            this.isLoading = false;
+        }, 100);
+    }
+    
+    // Public methods
+    loadAll() {
+        // Load all remaining cards immediately
+        this.cards.forEach(card => {
+            if (card.dataset.progressiveHidden) {
+                card.style.display = '';
+                delete card.dataset.progressiveHidden;
+            }
+        });
+        
+        this.loadedCount = this.cards.length;
+        console.log(`Loaded all ${this.cards.length} cards`);
+    }
+    
+    reset() {
+        // Reset to initial state
+        this.showInitialCards();
+    }
+    
+    destroy() {
+        // Remove progressive loading
+        this.loadAll();
+        delete this.container.dataset.progressiveLoading;
+    }
+}
+
+// Auto-initialization function
+function initializeProgressiveLoading() {
+    const initForContainer = (container) => {
+        // Skip if already initialized
+        if (container.dataset.progressiveLoading) {
+            return;
+        }
+        
+        // Check if container is visible and has content
+        const rect = container.getBoundingClientRect();
+        const cards = container.querySelectorAll('.card');
+        
+        // Only initialize for visible containers with many cards
+        if (rect.width > 0 && rect.height > 0 && cards.length >= 50) {
+            new ProgressiveCardLoader(container, {
+                initialCards: 30,
+                batchSize: 20,
+                scrollThreshold: 0.7,
+                minCards: 50
+            });
+        }
+    };
+    
+    // Initialize for current visible containers
+    const containers = document.querySelectorAll('.extra-network-cards');
+    containers.forEach(container => {
+        if (container.id && container.id.includes('_cards')) {
+            initForContainer(container);
+        }
+    });
+    
+    // Watch for tab changes to initialize containers when they become visible
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                // Tab visibility might have changed
+                setTimeout(() => {
+                    containers.forEach(initForContainer);
+                }, 100);
+            }
+        });
+    });
+    
+    // Observe tab containers
+    document.querySelectorAll('[id^="tab_"]').forEach(tab => {
+        observer.observe(tab, { attributes: true, attributeFilter: ['style'] });
+    });
+    
+    // Watch for new cards being added (search, refresh, etc.)
+    containers.forEach(container => {
+        const cardObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    // Cards were added, reinitialize if needed
+                    setTimeout(() => initForContainer(container), 500);
+                }
+            });
+        });
+        
+        cardObserver.observe(container, { childList: true });
+    });
+    
+    console.log('Progressive loading initialization complete');
+}
+
+// Utility functions for manual control
+function loadAllCards(containerId) {
+    const container = document.getElementById(containerId);
+    if (container && container.progressiveLoader) {
+        container.progressiveLoader.loadAll();
+    }
+}
+
+function resetProgressiveLoading(containerId) {
+    const container = document.getElementById(containerId);
+    if (container && container.progressiveLoader) {
+        container.progressiveLoader.reset();
+    }
+}
+
+function disableProgressiveLoading(containerId) {
+    const container = document.getElementById(containerId);
+    if (container && container.progressiveLoader) {
+        container.progressiveLoader.destroy();
+    }
+}
+
+// Auto-initialize when ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        // Wait a bit for cards to load
+        setTimeout(initializeProgressiveLoading, 1000);
+    });
+} else {
+    // Page already loaded, wait for cards
+    setTimeout(initializeProgressiveLoading, 1000);
+}
+
+// Export for manual use
+window.ProgressiveCardLoader = ProgressiveCardLoader;
+window.initializeProgressiveLoading = initializeProgressiveLoading;
+window.loadAllCards = loadAllCards;
+window.resetProgressiveLoading = resetProgressiveLoading;
+window.disableProgressiveLoading = disableProgressiveLoading;
+
+console.log('Progressive card loading system ready!');
