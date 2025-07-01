@@ -1703,26 +1703,3 @@ body.resizing .resize-handle {
 .forge_space_btn{
     min-width: 0 !important;
 }
-/* ===== DEBOUNCED SEARCH VISUAL FEEDBACK ===== */
-
-/* Search box shimmer animation while typing */
-.extra-network-control--search-text.searching {
-    background: linear-gradient(90deg, 
-        var(--input-background-fill), 
-        var(--input-background-fill-focus), 
-        var(--input-background-fill));
-    background-size: 200% 100%;
-    animation: search-shimmer 1s infinite;
-    border-color: var(--input-border-color-focus);
-    transition: border-color 0.2s ease;
-}
-
-/* Keyframes for the shimmer effect */
-@keyframes search-shimmer {
-    0% { 
-        background-position: -200% 0; 
-    }
-    100% { 
-        background-position: 200% 0; 
-    }
-}
