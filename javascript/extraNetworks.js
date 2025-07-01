@@ -1,3 +1,18 @@
+/**
+ * Creates a debounced version of a function that delays its execution
+ * until after the specified delay has elapsed since the last time it was called.
+ */
+function createDebouncedSearch(callback, delay = 300) {
+    let timeoutId;
+    
+    return function debounced(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            callback.apply(this, args);
+        }, delay);
+    };
+}
+
 function toggleCss(key, css, enable) {
     var style = document.getElementById(key);
     if (enable && !style) {
@@ -100,13 +115,13 @@ function setupExtraNetworksForTab(tabname) {
             applySort(force);
         };
 
-
         var applySort = function(force) {
             var cards = gradioApp().querySelectorAll('#' + tabname_full + ' div.card');
             var parent = gradioApp().querySelector('#' + tabname_full + "_cards");
             var reverse = sort_dir.dataset.sortdir == "Descending";
             var activeSearchElem = gradioApp().querySelector('#' + tabname_full + "_controls .extra-network-control--sort.extra-network-control--enabled");
-            var sortKey = activeSearchElem ? activeSearchElem.dataset.sortkey : "default";
+            var sortKey = activeSearchElem ?
+                activeSearchElem.dataset.sortkey : "default";
             var sortKeyDataField = "sort" + sortKey.charAt(0).toUpperCase() + sortKey.slice(1);
             var sortKeyStore = sortKey + "-" + sort_dir.dataset.sortdir + "-" + cards.length;
 
@@ -139,9 +154,33 @@ function setupExtraNetworksForTab(tabname) {
             parent.appendChild(frag);
         };
 
-        search.addEventListener("input", function() {
+        // ===== OLD CODE =====
+        // OLD CODE (DELETE THIS):
+        // search.addEventListener("input", function() {
+        //     applyFilter();
+        // });
+        
+        // ===== NEW CODE  =====
+        // Create debounced version of applyFilter
+        const debouncedApplyFilter = createDebouncedSearch(() => {
             applyFilter();
+        }, 300); // Wait 300ms after user stops typing
+        
+        // Add visual feedback during search
+        search.addEventListener("input", function(event) {
+            // Add searching class for visual feedback
+            search.classList.add('searching');
+            
+            // Call the debounced filter
+            debouncedApplyFilter();
+            
+            // Remove searching class after a short delay
+            setTimeout(() => {
+                search.classList.remove('searching');
+            }, 400);
         });
+        // ===== END OF REPLACEMENT =====
+
         applySort();
         applyFilter();
 
