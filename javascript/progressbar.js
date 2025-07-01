@@ -1,4 +1,4 @@
-// code related to showing and updating progressbar shown as the image is being made
+// Modified javascript/progressbar.js with Adaptive Refresh Rate Optimization
 
 function rememberGallerySelection() {
 
@@ -45,6 +45,31 @@ function formatTime(secs) {
     }
 }
 
+// OPTIMIZATION: NEW FUNCTION - Smart refresh rate based on generation progress
+function getSmartRefreshRate(progress, isActive) {
+    // If generation hasn't started yet, check less frequently
+    if (!isActive || progress < 0.05) {
+        return 1000; // 1 second - saves 50% requests during startup
+    }
+    
+    // Early generation - slower refresh (less visual change happening)
+    if (progress < 0.2) {
+        return 800; // 37% less frequent than current 500ms
+    }
+    
+    // Mid generation - normal speed with slight optimization
+    if (progress < 0.7) {
+        return 400; // 20% faster than current 500ms
+    }
+    
+    // Late generation - faster refresh (rapid visual changes)
+    if (progress < 0.95) {
+        return 250; // 100% faster - catch important details
+    }
+    
+    // Final stage - very fast to catch completion
+    return 200; // 150% faster for final touches
+}
 
 var originalAppTitle = undefined;
 
@@ -63,7 +88,6 @@ function setTitle(progress) {
         document.title = title;
     }
 }
-
 
 function randomId() {
     return "task(" + Math.random().toString(36).slice(2, 7) + Math.random().toString(36).slice(2, 7) + Math.random().toString(36).slice(2, 7) + ")";
@@ -167,9 +191,10 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
                 onProgress(res);
             }
 
+            // OPTIMIZATION: CHANGED - Use smart refresh rate instead of fixed 500ms
             setTimeout(() => {
                 funProgress(id_task, res.id_live_preview);
-            }, opts.live_preview_refresh_period || 500);
+            }, getSmartRefreshRate(res.progress || 0, res.active));
         }, function() {
             removeProgressBar();
         });
@@ -183,6 +208,7 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
 
             if (res.live_preview && gallery) {
                 var img = new Image();
+                // OPTIMIZATION: ENHANCED - Smooth transitions instead of abrupt changes
                 img.onload = function() {
                     if (!livePreview) {
                         livePreview = document.createElement('div');
@@ -190,17 +216,35 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
                         gallery.insertBefore(livePreview, gallery.firstElementChild);
                     }
 
+                    // Add smooth transition
+                    img.style.opacity = '0';
+                    img.style.transition = 'opacity 0.3s ease-in-out';
+                    
                     livePreview.appendChild(img);
+                    
+                    // Trigger smooth fade-in
+                    setTimeout(() => {
+                        img.style.opacity = '1';
+                    }, 10);
+                    
+                    // Clean up old images with fade-out
                     if (livePreview.childElementCount > 2) {
-                        livePreview.removeChild(livePreview.firstElementChild);
+                        const oldImg = livePreview.firstElementChild;
+                        oldImg.style.opacity = '0';
+                        setTimeout(() => {
+                            if (oldImg.parentNode) {
+                                livePreview.removeChild(oldImg);
+                            }
+                        }, 300);
                     }
                 };
                 img.src = res.live_preview;
             }
 
+            // OPTIMIZATION: CHANGED - Use smart refresh rate instead of fixed 500ms
             setTimeout(() => {
                 funLivePreview(id_task, res.id_live_preview);
-            }, opts.live_preview_refresh_period || 500);
+            }, getSmartRefreshRate(res.progress || 0, res.active));
         }, function() {
             removeProgressBar();
         });
@@ -211,5 +255,4 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
     if (gallery) {
         funLivePreview(id_task, 0);
     }
-
 }
