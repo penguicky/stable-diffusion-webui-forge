@@ -238,38 +238,140 @@ var re_extranet_g = /<([^:^>]+:[^:]+):[\d.]+>/g;
 
 var re_extranet_neg = /\(([^:^>]+:[\d.]+)\)/;
 var re_extranet_g_neg = /\(([^:^>]+:[\d.]+)\)/g;
+
+function parseActivationPhrases(text) {
+    // Split by common separators and clean up
+    return text.split(/[,;|]+/)
+        .map(phrase => phrase.trim())
+        .filter(phrase => phrase.length > 0 && phrase !== ' ');
+}
+
+function removeActivationPhrases(promptText, activationText, separator) {
+    // Parse the activation text into individual phrases
+    var phrasesToRemove = parseActivationPhrases(activationText);
+    var result = promptText;
+    
+    // Try to remove each phrase individually
+    phrasesToRemove.forEach(function(phrase) {
+        if (phrase.length === 0) return;
+        
+        // Escape special regex characters in the phrase
+        var escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Create patterns to handle both weighted and unweighted phrases
+        var patterns = [
+            // Weighted phrase patterns: (phrase:weight) - handles positive and negative weights
+            '\\(\\s*' + escapedPhrase + '\\s*:-?[0-9]*\\.?[0-9]+\\s*\\)\\s*,?\\s*',
+            '\\(\\s*' + escapedPhrase + '\\s*:-?[0-9]*\\.?[0-9]+\\s*\\)',
+            ',\\s*\\(\\s*' + escapedPhrase + '\\s*:-?[0-9]*\\.?[0-9]+\\s*\\)',
+            
+            // Regular phrase patterns with comma handling
+            escapedPhrase + '\\s*,\\s*',
+            ',\\s*' + escapedPhrase + '\\s*',
+            
+            // With separator handling
+            escapedPhrase + '\\s*' + separator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*',
+            separator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*' + escapedPhrase + '\\s*',
+            
+            // Just the phrase with optional whitespace (fallback)
+            '\\s*' + escapedPhrase + '\\s*'
+        ];
+        
+        // Try each pattern
+        for (var i = 0; i < patterns.length; i++) {
+            var regex = new RegExp(patterns[i], 'gi');
+            var testResult = result.replace(regex, ' ');
+            
+            // If something was removed, use this result and move to next phrase
+            if (testResult !== result) {
+                result = testResult;
+                break;
+            }
+        }
+    });
+    
+    return result;
+}
+
+function cleanupPromptText(text, separator) {
+    var cleaned = text;
+    
+    // Remove orphaned parentheses with only weights/numbers like "( :-0.9)" or "(:1.2)" or "(:-0.5)"
+    cleaned = cleaned.replace(/\(\s*:-?[0-9]*\.?[0-9]+\s*\)/g, '');
+    
+    // Remove empty parentheses
+    cleaned = cleaned.replace(/\(\s*\)/g, '');
+    
+    // Remove multiple consecutive separators
+    var sepPattern = separator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(sepPattern + '+', 'g'), separator);
+    
+    // Remove multiple consecutive commas
+    cleaned = cleaned.replace(/,+/g, ',');
+    
+    // Remove multiple consecutive spaces
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    
+    // Remove separators and commas at the beginning
+    cleaned = cleaned.replace(/^[\s,;|]+/, '');
+    
+    // Remove separators and commas at the end
+    cleaned = cleaned.replace(/[\s,;|]+$/, '');
+    
+    // Clean up patterns like ", ," or " , , "
+    cleaned = cleaned.replace(/\s*,\s*,+\s*/g, ', ');
+    
+    // Remove standalone commas with only spaces
+    cleaned = cleaned.replace(/^\s*,\s*/, '');
+    cleaned = cleaned.replace(/\s*,\s*$/, '');
+    
+    return cleaned.trim();
+}
+
 function tryToRemoveExtraNetworkFromPrompt(textarea, text, isNeg) {
     var m = text.match(isNeg ? re_extranet_neg : re_extranet);
     var replaced = false;
-    var newTextareaText;
+    var newTextareaText = textarea.value;
     var extraTextBeforeNet = opts.extra_networks_add_text_separator;
+    
     if (m) {
         var extraTextAfterNet = m[2];
         var partToSearch = m[1];
         var foundAtPosition = -1;
+        
+        // First remove the LoRA tag itself
         newTextareaText = textarea.value.replaceAll(isNeg ? re_extranet_g_neg : re_extranet_g, function(found, net, pos) {
-            m = found.match(isNeg ? re_extranet_neg : re_extranet);
-            if (m[1] == partToSearch) {
+            var matchResult = found.match(isNeg ? re_extranet_neg : re_extranet);
+            if (matchResult[1] == partToSearch) {
                 replaced = true;
                 foundAtPosition = pos;
                 return "";
             }
             return found;
         });
+        
+        // If we found and removed the LoRA tag, also try to remove activation texts
+        if (replaced && extraTextAfterNet && extraTextAfterNet.trim().length > 0) {
+            newTextareaText = removeActivationPhrases(newTextareaText, extraTextAfterNet, extraTextBeforeNet);
+        }
+        
         if (foundAtPosition >= 0) {
-            if (extraTextAfterNet && newTextareaText.substr(foundAtPosition, extraTextAfterNet.length) == extraTextAfterNet) {
-                newTextareaText = newTextareaText.substr(0, foundAtPosition) + newTextareaText.substr(foundAtPosition + extraTextAfterNet.length);
-            }
-            if (newTextareaText.substr(foundAtPosition - extraTextBeforeNet.length, extraTextBeforeNet.length) == extraTextBeforeNet) {
+            // Clean up separators around where the LoRA tag was
+            if (foundAtPosition >= extraTextBeforeNet.length && 
+                newTextareaText.substr(foundAtPosition - extraTextBeforeNet.length, extraTextBeforeNet.length) == extraTextBeforeNet) {
                 newTextareaText = newTextareaText.substr(0, foundAtPosition - extraTextBeforeNet.length) + newTextareaText.substr(foundAtPosition);
             }
         }
     } else {
-        newTextareaText = textarea.value.replaceAll(new RegExp(`((?:${extraTextBeforeNet})?${text})`, "g"), "");
-        replaced = (newTextareaText != textarea.value);
+        // No LoRA tag found, try to remove activation text directly
+        var originalText = textarea.value;
+        newTextareaText = removeActivationPhrases(originalText, text, extraTextBeforeNet);
+        replaced = (newTextareaText !== originalText);
     }
 
     if (replaced) {
+        // Final cleanup: remove double separators, orphaned parentheses, and trim
+        newTextareaText = cleanupPromptText(newTextareaText, extraTextBeforeNet);
         textarea.value = newTextareaText;
         return true;
     }
