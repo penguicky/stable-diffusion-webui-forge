@@ -19,10 +19,11 @@
 (function() {
     'use strict';
 
-    console.log("🚀 Initializing Intelligent Thumbnail Loader for Extra Networks...");
+    // Note: Debug logging is disabled by default for production
+    // To enable debug mode, use: intelligentThumbnailLoader.enableDebug()
 
     class IntelligentThumbnailLoader {
-        constructor() {
+        constructor(options = {}) {
             // Core tracking objects
             this.loadedImages = new Set();
             this.loadingImages = new Set();
@@ -37,23 +38,44 @@
             
             // Configuration
             this.config = {
-                rootMargin: '100px',        // Load thumbnails 100px before they enter viewport
-                threshold: 0.1,             // Trigger when 10% visible
-                retryDelay: 1000,           // Wait 1s between retries
-                mutationDebounce: 1000,     // Wait 1s before reprocessing after DOM changes
-                loadingIndicatorDelay: 200  // Show loading indicator after 200ms
+                rootMargin: '100px',
+                threshold: 0.1,
+                retryDelay: 1000,
+                mutationDebounce: 1000,
+                loadingIndicatorDelay: 200,
+                debug: options.debug !== undefined ? options.debug : false // Default: debug disabled
             };
             
-            console.log("✅ Intelligent Thumbnail Loader initialized");
+            this.debug("🚀 Initializing Intelligent Thumbnail Loader for Extra Networks...");
+            this.debug("✅ Intelligent Thumbnail Loader initialized");
+        }
+        
+        /**
+         * Conditional logging method - only logs when debug mode is enabled
+         * @param {...any} args - Arguments to log
+         */
+        debug(...args) {
+            if (this.config.debug) {
+                console.log(...args);
+            }
+        }
+        
+        /**
+         * Enable or disable debug logging
+         * @param {boolean} enabled - Whether to enable debug logging
+         */
+        setDebugMode(enabled) {
+            this.config.debug = enabled;
+            this.debug(`🔧 Debug mode ${enabled ? 'enabled' : 'disabled'}`);
         }
         
         initialize() {
             if (this.isInitialized) {
-                console.log("⏭️ Thumbnail loader already initialized");
+                this.debug("⏭️ Thumbnail loader already initialized");
                 return;
             }
             
-            console.log("🔧 Setting up intelligent thumbnail loading...");
+            this.debug("🔧 Setting up intelligent thumbnail loading...");
             
             // Create intersection observer for lazy loading
             this.observer = new IntersectionObserver(
@@ -74,24 +96,24 @@
             this.injectStyles();
             
             this.isInitialized = true;
-            console.log("🎯 Intelligent thumbnail loading initialized successfully!");
+            this.debug("🎯 Intelligent thumbnail loading initialized successfully!");
         }
         
         processAllCards() {
             if (this.isProcessing) {
-                console.log("⏸️ Already processing cards, skipping...");
+                this.debug("⏸️ Already processing cards, skipping...");
                 return;
             }
             
             this.isProcessing = true;
-            console.log("🔍 Processing extra network cards for lazy loading...");
+            this.debug("🔍 Processing extra network cards for lazy loading...");
             
             // Find all extra network cards
             const allCards = document.querySelectorAll('.extra-network-cards .card');
-            console.log(`📊 Found ${allCards.length} total extra network cards`);
+            this.debug(`📊 Found ${allCards.length} total extra network cards`);
             
             if (allCards.length === 0) {
-                console.log("❌ No extra network cards found - will retry in 1 second");
+                this.debug("❌ No extra network cards found - will retry in 1 second");
                 this.isProcessing = false;
                 setTimeout(() => this.processAllCards(), 1000);
                 return;
@@ -108,8 +130,8 @@
                 }
             });
             
-            console.log(`👁️ Found ${newVisibleCards.length} new visible cards to process`);
-            console.log(`📊 Already observing ${this.observedCards.size} cards`);
+            this.debug(`👁️ Found ${newVisibleCards.length} new visible cards to process`);
+            this.debug(`📊 Already observing ${this.observedCards.size} cards`);
             
             // Process each new visible card
             let processedCount = 0;
@@ -119,15 +141,15 @@
                 }
             });
             
-            console.log(`✅ Successfully processed ${processedCount} new cards for lazy loading`);
-            console.log("📊 Current stats:", this.getStats());
+            this.debug(`✅ Successfully processed ${processedCount} new cards for lazy loading`);
+            this.debug("📊 Current stats:", this.getStats());
             
             this.isProcessing = false;
             
             if (processedCount > 0) {
-                console.log("🎉 New cards prepared for intelligent loading!");
+                this.debug("🎉 New cards prepared for intelligent loading!");
             } else if (newVisibleCards.length === 0) {
-                console.log("✨ No new cards to process - all visible cards already handled");
+                this.debug("✨ No new cards to process - all visible cards already handled");
             }
         }
         
@@ -139,12 +161,12 @@
             // Find thumbnail image(s) in the card
             const thumbnailImages = this.findThumbnailImages(card);
             if (thumbnailImages.length === 0) {
-                console.log(`❌ No thumbnail images found in card: ${card.dataset.name || 'unnamed'}`);
+                this.debug(`❌ No thumbnail images found in card: ${card.dataset.name || 'unnamed'}`);
                 return false;
             }
             
             const cardName = card.dataset.name || `card-${Date.now()}`;
-            console.log(`✅ Processing card for lazy loading: ${cardName}`);
+            this.debug(`✅ Processing card for lazy loading: ${cardName}`);
             
             // Mark card as observed
             this.observedCards.add(card);
@@ -160,7 +182,7 @@
             // Start observing the card for intersection
             this.observer.observe(card);
             
-            console.log(`   🎯 Card prepared for intelligent loading: ${cardName}`);
+            this.debug(`   🎯 Card prepared for intelligent loading: ${cardName}`);
             return true;
         }
         
@@ -230,11 +252,11 @@
                     return;
                 }
                 
-                console.log(`🔄 New extra network content detected, scheduling reprocess...`);
+                this.debug(`🔄 New extra network content detected, scheduling reprocess...`);
                 
                 clearTimeout(this.mutationTimeout);
                 this.mutationTimeout = setTimeout(() => {
-                    console.log("🔄 Processing new extra network content for lazy loading...");
+                    this.debug("🔄 Processing new extra network content for lazy loading...");
                     this.processAllCards();
                 }, this.config.mutationDebounce);
             });
@@ -249,7 +271,7 @@
                 });
             });
             
-            console.log(`👀 Intelligent mutation observer monitoring ${containers.length} extra network containers`);
+            this.debug(`👀 Intelligent mutation observer monitoring ${containers.length} extra network containers`);
         }
         
         handleIntersection(entries) {
@@ -257,7 +279,7 @@
                 if (entry.isIntersecting) {
                     const card = entry.target;
                     const cardName = card.dataset.name || 'unnamed';
-                    console.log(`🎯 Card entering viewport: ${cardName}`);
+                    this.debug(`🎯 Card entering viewport: ${cardName}`);
                     this.loadCardThumbnails(card);
                     this.observer.unobserve(card); // Stop observing once loaded
                 }
@@ -272,7 +294,7 @@
             }
             
             this.loadingImages.add(cardName);
-            console.log(`📦 Loading thumbnails for card: ${cardName}`);
+            this.debug(`📦 Loading thumbnails for card: ${cardName}`);
             
             try {
                 // Find all thumbnail images in this card
@@ -291,11 +313,11 @@
                 // Update tracking
                 this.loadedImages.add(cardName);
                 
-                console.log(`✅ Loaded thumbnails for: ${cardName} (total loaded: ${this.loadedImages.size})`);
+                this.debug(`✅ Loaded thumbnails for: ${cardName} (total loaded: ${this.loadedImages.size})`);
                 this.removeLoadingIndicator(card);
                 
             } catch (error) {
-                console.log(`❌ Failed to load thumbnails for: ${cardName}`, error);
+                this.debug(`❌ Failed to load thumbnails for: ${cardName}`, error);
                 this.scheduleRetry(card);
             } finally {
                 this.loadingImages.delete(cardName);
@@ -334,13 +356,13 @@
             
             if (retryCount < this.maxRetries) {
                 this.retryAttempts.set(cardName, retryCount + 1);
-                console.log(`🔄 Scheduling retry ${retryCount + 1}/${this.maxRetries} for: ${cardName}`);
+                this.debug(`🔄 Scheduling retry ${retryCount + 1}/${this.maxRetries} for: ${cardName}`);
                 
                 setTimeout(() => {
                     this.loadCardThumbnails(card);
                 }, this.config.retryDelay * (retryCount + 1));
             } else {
-                console.log(`❌ Max retries exceeded for: ${cardName}`);
+                this.debug(`❌ Max retries exceeded for: ${cardName}`);
                 this.removeLoadingIndicator(card);
             }
         }
@@ -455,7 +477,7 @@
         }
         
         forceLoadAllVisible() {
-            console.log("🚀 Force loading all visible thumbnails...");
+            this.debug("🚀 Force loading all visible thumbnails...");
             
             let forceLoadedCount = 0;
             this.observedCards.forEach(card => {
@@ -466,11 +488,11 @@
                 }
             });
             
-            console.log(`🔥 Force loaded ${forceLoadedCount} visible cards`);
+            this.debug(`🔥 Force loaded ${forceLoadedCount} visible cards`);
         }
         
         reinitialize() {
-            console.log("🔄 Reinitializing intelligent thumbnail loader...");
+            this.debug("🔄 Reinitializing intelligent thumbnail loader...");
             this.isProcessing = false;
             this.observedCards.clear();
             this.loadedImages.clear();
@@ -480,7 +502,7 @@
         }
         
         destroy() {
-            console.log("🧹 Destroying intelligent thumbnail loader...");
+            this.debug("🧹 Destroying intelligent thumbnail loader...");
             if (this.observer) {
                 this.observer.disconnect();
             }
@@ -492,9 +514,9 @@
     // Global instance
     let intelligentThumbnailLoader = null;
 
-    function initializeIntelligentThumbnailLoader() {
+    function initializeIntelligentThumbnailLoader(options = {}) {
         if (!intelligentThumbnailLoader) {
-            intelligentThumbnailLoader = new IntelligentThumbnailLoader();
+            intelligentThumbnailLoader = new IntelligentThumbnailLoader(options);
         }
         intelligentThumbnailLoader.initialize();
     }
@@ -507,30 +529,32 @@
         setTimeout(() => {
             initializeIntelligentThumbnailLoader();
             
-            // Monitor progress
+            // Monitor progress (only show if debug is enabled)
             setTimeout(() => {
                 const stats = intelligentThumbnailLoader.getStats();
-                console.log("📊 Intelligent thumbnail loading stats:", stats);
+                intelligentThumbnailLoader.debug("📊 Intelligent thumbnail loading stats:", stats);
                 
                 if (stats.observedCards > 0) {
-                    console.log("🎉 Intelligent thumbnail loading is active!");
+                    console.log("🎉 Intelligent thumbnail loading is active!"); // Always show this success message
                     
-                    // Start progress monitoring
-                    const progressMonitor = setInterval(() => {
-                        const currentStats = intelligentThumbnailLoader.getStats();
-                        console.log(`📈 Loading progress: ${currentStats.loadedImages}/${currentStats.observedCards} loaded (${currentStats.successRate}) - ${currentStats.currentlyLoading} loading`);
+                    // Start progress monitoring (only if debug enabled)
+                    if (intelligentThumbnailLoader.config.debug) {
+                        const progressMonitor = setInterval(() => {
+                            const currentStats = intelligentThumbnailLoader.getStats();
+                            intelligentThumbnailLoader.debug(`📈 Loading progress: ${currentStats.loadedImages}/${currentStats.observedCards} loaded (${currentStats.successRate}) - ${currentStats.currentlyLoading} loading`);
+                            
+                            // Stop monitoring when done
+                            if (currentStats.currentlyLoading === 0 && currentStats.observedCards > 0 && currentStats.loadedImages >= Math.min(currentStats.observedCards, 10)) {
+                                clearInterval(progressMonitor);
+                                intelligentThumbnailLoader.debug("🎉 Intelligent thumbnail loading complete!");
+                            }
+                        }, 3000);
                         
-                        // Stop monitoring when done
-                        if (currentStats.currentlyLoading === 0 && currentStats.observedCards > 0 && currentStats.loadedImages >= Math.min(currentStats.observedCards, 10)) {
+                        // Stop monitoring after 2 minutes
+                        setTimeout(() => {
                             clearInterval(progressMonitor);
-                            console.log("🎉 Intelligent thumbnail loading complete!");
-                        }
-                    }, 3000);
-                    
-                    // Stop monitoring after 2 minutes
-                    setTimeout(() => {
-                        clearInterval(progressMonitor);
-                    }, 120000);
+                        }, 120000);
+                    }
                 }
             }, 2000);
         }, 500);
@@ -546,6 +570,18 @@
         },
         reinit() {
             return intelligentThumbnailLoader?.reinitialize();
+        },
+        enableDebug() {
+            if (intelligentThumbnailLoader) {
+                intelligentThumbnailLoader.setDebugMode(true);
+                console.log("🔧 Debug mode enabled - you'll now see detailed logging");
+            }
+        },
+        disableDebug() {
+            if (intelligentThumbnailLoader) {
+                intelligentThumbnailLoader.setDebugMode(false);
+                console.log("🔇 Debug mode disabled - logging minimized");
+            }
         },
         getInstance() {
             return intelligentThumbnailLoader;
@@ -571,5 +607,7 @@
     console.log("  intelligentThumbnailLoader.stats - Get loading statistics");
     console.log("  intelligentThumbnailLoader.forceLoad() - Force load all visible");
     console.log("  intelligentThumbnailLoader.reinit() - Reinitialize loader");
+    console.log("  intelligentThumbnailLoader.enableDebug() - Enable debug logging");
+    console.log("  intelligentThumbnailLoader.disableDebug() - Disable debug logging");
 
 })();
