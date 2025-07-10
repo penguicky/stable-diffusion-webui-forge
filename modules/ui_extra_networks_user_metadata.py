@@ -7,6 +7,12 @@ import gradio as gr
 
 from modules import infotext_utils, images, sysinfo, errors, ui_extra_networks
 
+try:
+    from send2trash import send2trash
+    send2trash_available = True
+except ImportError:
+    send2trash_available = False
+
 
 class UserMetadataEditor:
 
@@ -31,6 +37,7 @@ class UserMetadataEditor:
         self.button_cancel = None
         self.button_replace_preview = None
         self.button_save = None
+        self.button_delete = None
 
     def get_user_metadata(self, name):
         item = self.page.items.get(name, {})
@@ -41,6 +48,56 @@ class UserMetadataEditor:
             item['user_metadata'] = user_metadata
 
         return user_metadata
+
+    def delete_network_file(self, name):
+        """Delete the network file and associated files (metadata, preview, etc.)"""
+        try:
+            # If name is None or empty, user cancelled the confirmation
+            if not name:
+                return "Delete cancelled"
+
+            item = self.page.items.get(name, {})
+            if not item:
+                return "Error: Network not found"
+
+            filename = item.get('filename')
+            if not filename or not os.path.exists(filename):
+                return "Error: File not found"
+
+            # Get the base path without extension for associated files
+            base_path, ext = os.path.splitext(filename)
+
+            # List of files to delete
+            files_to_delete = [filename]
+
+            # Add associated files
+            associated_extensions = ['.json', '.txt', '.description.txt', '.html', '.preview.png', '.preview.jpg', '.preview.jpeg', '.preview.webp']
+            for assoc_ext in associated_extensions:
+                assoc_file = base_path + assoc_ext
+                if os.path.exists(assoc_file):
+                    files_to_delete.append(assoc_file)
+
+            # Delete files
+            deleted_files = []
+            for file_path in files_to_delete:
+                try:
+                    if send2trash_available:
+                        send2trash(file_path)
+                    else:
+                        os.remove(file_path)
+                    deleted_files.append(os.path.basename(file_path))
+                except Exception as e:
+                    return f"Error deleting {os.path.basename(file_path)}: {str(e)}"
+
+            # Refresh the page to remove the deleted item
+            if hasattr(self.page, 'refresh'):
+                self.page.refresh()
+
+            status_msg = f"Successfully deleted: {', '.join(deleted_files)}"
+            return status_msg
+
+        except Exception as e:
+            return f"Error: {str(e)}"
 
     def create_extra_default_items_in_left_column(self):
         pass
@@ -61,12 +118,25 @@ class UserMetadataEditor:
 
         with gr.Row(elem_classes="edit-user-metadata-buttons"):
             self.button_cancel = gr.Button('Cancel')
+            self.button_delete = gr.Button('Delete', variant='stop')
             self.button_replace_preview = gr.Button('Replace preview', variant='primary')
             self.button_save = gr.Button('Save', variant='primary')
 
         self.html_status = gr.HTML(elem_classes="edit-user-metadata-status")
 
         self.button_cancel.click(fn=None, _js="closePopup")
+
+        # Setup delete button handler immediately after creation
+        self.button_delete.click(
+            fn=self.delete_network_file,
+            inputs=[self.edit_name_input],
+            outputs=[self.html_status]
+        ).then(
+            fn=None,
+            _js="function(status) { if (status && status.indexOf('Successfully') !== -1) { closePopup(); } }",
+            inputs=[self.html_status],
+            outputs=[]
+        )
 
     def get_card_html(self, name):
         item = self.page.items.get(name, {})
@@ -162,6 +232,7 @@ class UserMetadataEditor:
             .then(fn=lambda: gr.update(visible=True), inputs=[], outputs=[self.box])
 
         self.setup_save_handler(self.button_save, self.save_user_metadata, [self.edit_description, self.edit_notes])
+
 
     def create_ui(self):
         with gr.Box(visible=False, elem_id=self.id_part, elem_classes="edit-user-metadata") as box:
