@@ -457,10 +457,191 @@ function tryToRemoveExtraNetworkFromPrompt(textarea, text, isNeg) {
   return false;
 }
 
+function splitNetworkTagAndActivation(text) {
+  // Regex to match network tags: <type:name:weight> or <type:name>
+  const networkTagRegex = /<([^:>]+:[^:>]+(?::[^>]+)?)>/;
+  const match = text.match(networkTagRegex);
+
+  if (match) {
+    const fullTag = match[0];
+    const tagEndIndex = match.index + fullTag.length;
+    const activationText = text.substring(tagEndIndex).trim();
+
+    if (activationText.length > 0) {
+      return {
+        networkTag: fullTag,
+        activationText: activationText,
+        hasActivation: true,
+      };
+    }
+  }
+
+  return {
+    networkTag: text,
+    activationText: "",
+    hasActivation: false,
+  };
+}
+
+function insertTextAtCursorPosition(textArea, text, separator) {
+  // Safety checks
+  if (!textArea || !text || typeof text !== "string") {
+    return false;
+  }
+
+  // Ensure separator is a string
+  separator = separator || ", ";
+
+  try {
+    // Check if the textarea has valid selection properties
+    if (
+      typeof textArea.selectionStart === "number" &&
+      typeof textArea.selectionEnd === "number"
+    ) {
+      // Check if textarea is focused or if we can determine cursor position
+      const isFocused = document.activeElement === textArea;
+      const hasValidCursorPos = textArea.selectionStart >= 0;
+
+      if (isFocused || hasValidCursorPos) {
+        const cursorPos = textArea.selectionStart;
+        const selectionEnd = textArea.selectionEnd;
+        const currentValue = textArea.value || "";
+
+        // Insert text at cursor position, replacing any selected text
+        const beforeCursor = currentValue.substring(0, cursorPos);
+        const afterCursor = currentValue.substring(selectionEnd);
+
+        // Split network tag and activation text for proper comma formatting
+        const splitResult = splitNetworkTagAndActivation(text);
+        let textToInsert;
+
+        if (splitResult.hasActivation) {
+          // Format as: network_tag, activation_text
+          textToInsert =
+            splitResult.networkTag + separator + splitResult.activationText;
+        } else {
+          // No activation text, use original text
+          textToInsert = text;
+        }
+
+        // Add leading comma for network cards (e.g., ", <lora:example:1>")
+        // This ensures proper separation from existing content
+        if (!textToInsert.startsWith(separator)) {
+          textToInsert = separator + textToInsert;
+        }
+
+        // Add trailing comma after the complete network card text
+        // This ensures proper separation for subsequent terms
+        if (!textToInsert.endsWith(separator)) {
+          textToInsert = textToInsert + separator;
+        }
+
+        // Construct the new value
+        let newValue = beforeCursor + textToInsert + afterCursor;
+
+        // Ensure the entire prompt ends with a trailing comma (prompt-ending comma convention)
+        // This handles cases where there's text after the cursor that doesn't end with comma
+        const finalTrimmed = newValue.trimEnd();
+        if (
+          finalTrimmed.length > 0 &&
+          !finalTrimmed.endsWith(separator.trim()) &&
+          !finalTrimmed.endsWith(",")
+        ) {
+          newValue = finalTrimmed + separator;
+        }
+
+        // Set new value
+        textArea.value = newValue;
+
+        // Update cursor position to be after the inserted text
+        const newCursorPos = cursorPos + textToInsert.length;
+        textArea.setSelectionRange(newCursorPos, newCursorPos);
+
+        // Focus the textarea to ensure cursor is visible
+        if (!isFocused) {
+          textArea.focus();
+        }
+
+        return true; // Successfully inserted at cursor
+      }
+    }
+  } catch (error) {
+    // Silently handle errors and fall back to original behavior
+  }
+
+  return false; // Could not insert at cursor, fallback needed
+}
+
 function updatePromptArea(text, textArea, isNeg) {
+  // Safety checks
+  if (!textArea || !text) {
+    return;
+  }
+
   if (!tryToRemoveExtraNetworkFromPrompt(textArea, text, isNeg)) {
-    textArea.value =
-      textArea.value + opts.extra_networks_add_text_separator + text;
+    // Try to insert at cursor position first
+    if (
+      !insertTextAtCursorPosition(
+        textArea,
+        text,
+        opts.extra_networks_add_text_separator
+      )
+    ) {
+      // Fallback to original behavior (append to end) with leading comma formatting
+      const currentValue = textArea.value || "";
+      const separator = opts.extra_networks_add_text_separator;
+
+      // Split network tag and activation text for proper comma formatting
+      const splitResult = splitNetworkTagAndActivation(text);
+      let textToAppend;
+
+      if (splitResult.hasActivation) {
+        // Format as: network_tag, activation_text
+        textToAppend =
+          splitResult.networkTag + separator + splitResult.activationText;
+      } else {
+        // No activation text, use original text
+        textToAppend = text;
+      }
+
+      // Add leading and trailing commas for network cards
+      if (!textToAppend.startsWith(separator)) {
+        textToAppend = separator + textToAppend;
+      }
+      if (!textToAppend.endsWith(separator)) {
+        textToAppend = textToAppend + separator;
+      }
+
+      // Construct new value
+      let newValue = currentValue;
+      if (currentValue.length > 0) {
+        const currentTrimmed = currentValue.trimEnd();
+        newValue = currentTrimmed + textToAppend;
+      } else {
+        // For empty textarea, use formatted text with trailing comma but no leading comma
+        if (splitResult.hasActivation) {
+          newValue =
+            splitResult.networkTag + separator + splitResult.activationText;
+        } else {
+          newValue = text;
+        }
+        if (!newValue.endsWith(separator)) {
+          newValue = newValue + separator;
+        }
+      }
+
+      // Ensure the entire prompt ends with a trailing comma (prompt-ending comma convention)
+      const finalTrimmed = newValue.trimEnd();
+      if (
+        finalTrimmed.length > 0 &&
+        !finalTrimmed.endsWith(separator.trim()) &&
+        !finalTrimmed.endsWith(",")
+      ) {
+        newValue = finalTrimmed + separator;
+      }
+
+      textArea.value = newValue;
+    }
   }
 
   updateInput(textArea);
