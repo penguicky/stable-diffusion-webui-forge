@@ -104,10 +104,18 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
 
     var requestWakeLock = async function() {
         if (!opts.prevent_screen_sleep_during_generation || wakeLock) return;
+
+        // Check if Wake Lock API is supported
+        if (!('wakeLock' in navigator)) {
+            console.log('Wake Lock API not supported in this browser');
+            return;
+        }
+
         try {
             wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Screen wake lock activated');
         } catch (err) {
-            console.error('Wake Lock is not supported.');
+            console.warn('Wake Lock request failed:', err.message);
         }
     };
 
@@ -116,8 +124,9 @@ function requestProgress(id_task, progressbarContainer, gallery, atEnd, onProgre
         try {
             await wakeLock.release();
             wakeLock = null;
+            console.log('Screen wake lock released');
         } catch (err) {
-            console.error('Wake Lock release failed', err);
+            console.warn('Wake Lock release failed:', err.message);
         }
     };
 

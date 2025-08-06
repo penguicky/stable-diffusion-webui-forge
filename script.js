@@ -1,3 +1,234 @@
+// Inline Performance Optimizations
+if (typeof window.performanceOptimizations === 'undefined') {
+    window.performanceOptimizations = {
+        // Basic debouncing
+        debounceTimers: new Map(),
+
+        // Real-time interaction exemptions
+        realTimeExemptions: new Set([
+            'forge-couple-canvas',
+            'shadow-forge-couple-canvas',
+            'canvas[data-forge-couple]',
+            '.forge-couple-canvas',
+            'canvas.forge-couple'
+        ]),
+
+        // Register additional real-time elements
+        registerRealTimeElement: function(selector) {
+            this.realTimeExemptions.add(selector);
+            console.log(`[Performance] Registered real-time element: ${selector}`);
+        },
+
+        // Register element instance as real-time
+        markElementAsRealTime: function(element) {
+            if (element) {
+                element.setAttribute('data-real-time', 'true');
+                element.classList.add('real-time');
+                console.log('[Performance] Marked element as real-time:', element);
+            }
+        },
+
+        // Check if element should be exempt from optimization
+        isRealTimeElement: function(element) {
+            if (!element) return false;
+
+            // Check for explicit real-time marking
+            if (element.hasAttribute('data-real-time') ||
+                (element.classList && element.classList.contains('real-time'))) {
+                return true;
+            }
+
+            // Check by ID
+            if (element.id && this.realTimeExemptions.has(element.id)) {
+                return true;
+            }
+
+            // Check by class
+            if (element.className) {
+                const classes = element.className.split(' ');
+                if (classes.some(cls => this.realTimeExemptions.has(`.${cls}`))) {
+                    return true;
+                }
+            }
+
+            // Check by tag and attributes
+            if (element.tagName === 'CANVAS') {
+                // Check for Forge Couple specific attributes or parent containers
+                if (element.hasAttribute('data-forge-couple') ||
+                    element.closest('.forge-couple-container') ||
+                    element.closest('[id*="forge-couple"]') ||
+                    element.closest('[class*="forge-couple"]')) {
+                    return true;
+                }
+            }
+
+            return false;
+        },
+
+        debounce: function(func, delay, key = 'default') {
+            if (this.debounceTimers.has(key)) {
+                clearTimeout(this.debounceTimers.get(key));
+            }
+            const timerId = setTimeout(() => {
+                this.debounceTimers.delete(key);
+                func();
+            }, delay);
+            this.debounceTimers.set(key, timerId);
+        },
+
+        // Basic throttling
+        throttleTimers: new Map(),
+        throttle: function(func, delay, key = 'default', element = null) {
+            // Skip throttling for real-time elements
+            if (element && this.isRealTimeElement(element)) {
+                func();
+                return;
+            }
+
+            if (this.throttleTimers.has(key)) {
+                return; // Already throttled
+            }
+            func();
+            const timerId = setTimeout(() => {
+                this.throttleTimers.delete(key);
+            }, delay);
+            this.throttleTimers.set(key, timerId);
+        },
+
+        // DOM query caching
+        domCache: new Map(),
+        querySelector: function(selector, maxAge = 5000) {
+            const cached = this.domCache.get(selector);
+            if (cached && (Date.now() - cached.timestamp) < maxAge) {
+                return cached.elements;
+            }
+            const elements = document.querySelectorAll(selector);
+            this.domCache.set(selector, {
+                elements: Array.from(elements),
+                timestamp: Date.now()
+            });
+            return elements;
+        },
+
+        // Smart event listener that respects real-time exemptions
+        addSmartEventListener: function(element, eventType, handler, options = {}) {
+            // For real-time elements, add listener directly without optimization
+            if (this.isRealTimeElement(element)) {
+                element.addEventListener(eventType, handler, options);
+                console.log(`[Performance] Real-time exemption applied for ${eventType} on`, element);
+                return;
+            }
+
+            // Apply optimizations for non-real-time elements
+            if (['mousemove', 'scroll', 'resize'].includes(eventType)) {
+                const throttledHandler = (event) => {
+                    this.throttle(() => handler(event), 16, `${eventType}-${element.id || 'unknown'}`, element);
+                };
+                element.addEventListener(eventType, throttledHandler, { ...options, passive: true });
+            } else if (['input', 'keyup'].includes(eventType)) {
+                const debouncedHandler = (event) => {
+                    this.debounce(() => handler(event), 300, `${eventType}-${element.id || 'unknown'}`);
+                };
+                element.addEventListener(eventType, debouncedHandler, options);
+            } else {
+                // Default behavior for other events
+                element.addEventListener(eventType, handler, options);
+            }
+        },
+
+        // Memory cleanup
+        cleanup: function() {
+            this.debounceTimers.forEach(timerId => clearTimeout(timerId));
+            this.throttleTimers.forEach(timerId => clearTimeout(timerId));
+            this.debounceTimers.clear();
+            this.throttleTimers.clear();
+            this.domCache.clear();
+        },
+
+        // Performance monitoring
+        getStats: function() {
+            return {
+                debounceTimers: this.debounceTimers.size,
+                throttleTimers: this.throttleTimers.size,
+                cachedQueries: this.domCache.size,
+                memoryUsage: performance.memory ? {
+                    used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+                    total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB'
+                } : 'Not available'
+            };
+        },
+
+        // Monitor performance
+        startMonitoring: function() {
+            setInterval(() => {
+                const stats = this.getStats();
+                if (stats.memoryUsage !== 'Not available') {
+                    const usedMB = parseInt(stats.memoryUsage.used);
+                    if (usedMB > 300) {
+                        console.warn(`[Performance] High memory usage: ${stats.memoryUsage.used}`);
+                    }
+                }
+            }, 30000); // Check every 30 seconds
+        }
+    };
+
+    // Auto-cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        window.performanceOptimizations.cleanup();
+    });
+
+    // Periodic cache cleanup
+    setInterval(() => {
+        const now = Date.now();
+        window.performanceOptimizations.domCache.forEach((entry, key) => {
+            if (now - entry.timestamp > 10000) { // 10 seconds
+                window.performanceOptimizations.domCache.delete(key);
+            }
+        });
+    }, 30000);
+
+    // Optimize common high-frequency events
+    setTimeout(() => {
+        // Throttle scroll events
+        const scrollElements = document.querySelectorAll('.gradio-gallery, [style*="overflow"]');
+        scrollElements.forEach(element => {
+            element.addEventListener('scroll', () => {
+                window.performanceOptimizations.throttle(() => {
+                    // Scroll handling logic can be added here
+                }, 16, `scroll-${element.id || 'unknown'}`);
+            }, { passive: true });
+        });
+
+        // Throttle window resize
+        window.addEventListener('resize', () => {
+            window.performanceOptimizations.throttle(() => {
+                // Resize handling logic can be added here
+                window.dispatchEvent(new CustomEvent('optimized-resize'));
+            }, 100, 'window-resize');
+        });
+
+        console.log('[Script] Event optimizations applied');
+    }, 2000); // Wait for DOM to be ready
+
+    // Start performance monitoring
+    window.performanceOptimizations.startMonitoring();
+
+    // Add global helper function
+    window.getPerformanceStats = () => {
+        if (window.performanceOptimizations) {
+            const stats = window.performanceOptimizations.getStats();
+            console.table(stats);
+            return stats;
+        } else {
+            console.warn('Performance optimizations not available');
+            return null;
+        }
+    };
+
+    console.log('[Script] Inline performance optimizations loaded and monitoring started');
+    console.log('[Script] Use window.getPerformanceStats() to check performance statistics');
+}
+
 function gradioApp() {
     const elems = document.getElementsByTagName('gradio-app');
     const elem = elems.length == 0 ? document : elems[0];
@@ -116,9 +347,11 @@ function scheduleAfterUiUpdateCallbacks() {
 }
 
 var executedOnLoaded = false;
+var mainMutationObserver = null;
 
 document.addEventListener("DOMContentLoaded", function() {
-    var mutationObserver = new MutationObserver(function(m) {
+    // Create managed MutationObserver
+    mainMutationObserver = new MutationObserver(function(m) {
         if (!executedOnLoaded && gradioApp().querySelector('#txt2img_prompt')) {
             executedOnLoaded = true;
             executeCallbacks(uiLoadedCallbacks);
@@ -132,7 +365,24 @@ document.addEventListener("DOMContentLoaded", function() {
             executeCallbacks(uiTabChangeCallbacks);
         }
     });
-    mutationObserver.observe(gradioApp(), {childList: true, subtree: true});
+
+    // Track observer for cleanup
+    if (window.memoryManager) {
+        window.memoryManager.trackObserver(mainMutationObserver);
+    }
+
+    mainMutationObserver.observe(gradioApp(), {childList: true, subtree: true});
+
+    // Cleanup on page unload
+    const cleanup = () => {
+        if (mainMutationObserver) {
+            mainMutationObserver.disconnect();
+            mainMutationObserver = null;
+        }
+    };
+
+    window.addEventListener('beforeunload', cleanup);
+    window.addEventListener('pagehide', cleanup);
 });
 
 /**

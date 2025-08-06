@@ -8,14 +8,23 @@ function set_theme(theme) {
 }
 
 function all_gallery_buttons() {
-    var allGalleryButtons = gradioApp().querySelectorAll('[style="display: block;"].tabitem div[id$=_gallery].gradio-gallery .thumbnails > .thumbnail-item.thumbnail-small');
-    var visibleGalleryButtons = [];
-    allGalleryButtons.forEach(function(elem) {
-        if (elem.parentElement.offsetParent) {
-            visibleGalleryButtons.push(elem);
-        }
-    });
-    return visibleGalleryButtons;
+    // Use optimized DOM query with caching
+    const selector = '[style="display: block;"].tabitem div[id$=_gallery].gradio-gallery .thumbnails > .thumbnail-item.thumbnail-small';
+
+    if (window.performanceOptimizations) {
+        const allGalleryButtons = window.performanceOptimizations.querySelector(selector, 2000); // 2 second cache
+        return Array.from(allGalleryButtons).filter(elem => elem.offsetParent !== null);
+    } else {
+        // Fallback to original implementation
+        var allGalleryButtons = gradioApp().querySelectorAll(selector);
+        var visibleGalleryButtons = [];
+        allGalleryButtons.forEach(function(elem) {
+            if (elem.parentElement.offsetParent) {
+                visibleGalleryButtons.push(elem);
+            }
+        });
+        return visibleGalleryButtons;
+    }
 }
 
 function selected_gallery_button() {
@@ -429,14 +438,23 @@ var onEditTimers = {};
 
 // calls func after afterMs milliseconds has passed since the input elem has been edited by user
 function onEdit(editId, elem, afterMs, func) {
-    var edited = function() {
-        var existingTimer = onEditTimers[editId];
-        if (existingTimer) clearTimeout(existingTimer);
+    // Use optimized debouncing if available
+    if (window.performanceOptimizations) {
+        var edited = function() {
+            window.performanceOptimizations.debounce(func, afterMs, editId);
+        };
+        elem.addEventListener("input", edited);
+        return edited;
+    } else {
+        // Fallback to original implementation
+        var edited = function() {
+            var existingTimer = onEditTimers[editId];
+            if (existingTimer) clearTimeout(existingTimer);
 
-        onEditTimers[editId] = setTimeout(func, afterMs);
-    };
+            onEditTimers[editId] = setTimeout(func, afterMs);
+        };
 
-    elem.addEventListener("input", edited);
-
-    return edited;
+        elem.addEventListener("input", edited);
+        return edited;
+    }
 }

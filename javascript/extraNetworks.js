@@ -352,6 +352,12 @@ function removeActivationPhrases(promptText, activationText, separator) {
 }
 
 function cleanupPromptText(text, separator) {
+  // Check if all autoformatting is disabled
+  if (opts.disable_all_forge_autoformatting) {
+    // Only perform minimal cleanup - just trim whitespace
+    return text.trim();
+  }
+
   var cleaned = text;
 
   // Remove orphaned parentheses with only weights/numbers like "( :-0.9)" or "(:1.2)" or "(:-0.5)"
@@ -367,21 +373,50 @@ function cleanupPromptText(text, separator) {
   // Remove multiple consecutive commas
   cleaned = cleaned.replace(/,+/g, ",");
 
-  // Remove multiple consecutive spaces
-  cleaned = cleaned.replace(/\s+/g, " ");
+  // Handle whitespace cleanup based on user preference
+  if (opts.extra_networks_preserve_line_breaks) {
+    // Preserve line breaks - only collapse spaces and tabs within lines
+    // Split by lines, clean each line individually, then rejoin
+    cleaned = cleaned.split(/(\r?\n)/).map(function(part, index) {
+      // Even indices are text content, odd indices are line breaks
+      if (index % 2 === 0) {
+        // Clean spaces and tabs within the line, but don't touch line breaks
+        return part.replace(/[ \t]+/g, " ");
+      } else {
+        // This is a line break, preserve it as-is
+        return part;
+      }
+    }).join("");
 
-  // Remove separators and commas at the beginning
-  cleaned = cleaned.replace(/^[\s,;|]+/, "");
+    // Remove separators and commas at the beginning of each line
+    cleaned = cleaned.replace(/^[\s,;|]+/gm, "");
 
-  // Remove separators and commas at the end
-  cleaned = cleaned.replace(/[\s,;|]+$/, "");
+    // Remove separators and commas at the end of each line
+    cleaned = cleaned.replace(/[\s,;|]+$/gm, "");
 
-  // Clean up patterns like ", ," or " , , "
-  cleaned = cleaned.replace(/\s*,\s*,+\s*/g, ", ");
+    // Clean up patterns like ", ," or " , , " within each line
+    cleaned = cleaned.replace(/\s*,\s*,+\s*/g, ", ");
 
-  // Remove standalone commas with only spaces
-  cleaned = cleaned.replace(/^\s*,\s*/, "");
-  cleaned = cleaned.replace(/\s*,\s*$/, "");
+    // Remove standalone commas with only spaces at the beginning/end of each line
+    cleaned = cleaned.replace(/^\s*,\s*/gm, "");
+    cleaned = cleaned.replace(/\s*,\s*$/gm, "");
+  } else {
+    // Legacy behavior - collapse all whitespace including line breaks
+    cleaned = cleaned.replace(/\s+/g, " ");
+
+    // Remove separators and commas at the beginning
+    cleaned = cleaned.replace(/^[\s,;|]+/, "");
+
+    // Remove separators and commas at the end
+    cleaned = cleaned.replace(/[\s,;|]+$/, "");
+
+    // Clean up patterns like ", ," or " , , "
+    cleaned = cleaned.replace(/\s*,\s*,+\s*/g, ", ");
+
+    // Remove standalone commas with only spaces
+    cleaned = cleaned.replace(/^\s*,\s*/, "");
+    cleaned = cleaned.replace(/\s*,\s*$/, "");
+  }
 
   return cleaned.trim();
 }
@@ -448,8 +483,14 @@ function tryToRemoveExtraNetworkFromPrompt(textarea, text, isNeg) {
   }
 
   if (replaced) {
-    // Final cleanup: remove double separators, orphaned parentheses, and trim
-    newTextareaText = cleanupPromptText(newTextareaText, extraTextBeforeNet);
+    // Apply cleanup based on global autoformatting setting
+    if (opts.disable_all_forge_autoformatting) {
+      // Only trim whitespace when autoformatting is disabled
+      newTextareaText = newTextareaText.trim();
+    } else {
+      // Apply full cleanup when autoformatting is enabled
+      newTextareaText = cleanupPromptText(newTextareaText, extraTextBeforeNet);
+    }
     textarea.value = newTextareaText;
     return true;
   }
@@ -1186,11 +1227,19 @@ function extraNetworksRefreshSingleCard(page, tabname, name) {
   );
 }
 
-window.addEventListener("keydown", function (event) {
+// Use memory manager for global event listener
+const escapeKeyHandler = function (event) {
   if (event.key == "Escape") {
     closePopup();
   }
-});
+};
+
+if (window.memoryManager) {
+  window.memoryManager.addEventListener(window, "keydown", escapeKeyHandler);
+} else {
+  // Fallback if memory manager not loaded yet
+  window.addEventListener("keydown", escapeKeyHandler);
+}
 
 /**
  * Setup custom loading for this script.
@@ -1213,7 +1262,7 @@ function scheduleAfterScriptsCallbacks() {
 }
 
 onUiLoaded(function () {
-  var mutationObserver = new MutationObserver(function (m) {
+  var extraNetworksMutationObserver = new MutationObserver(function (m) {
     let existingSearchfields = gradioApp().querySelectorAll(
       "[id$='_extra_search']"
     ).length;
@@ -1222,12 +1271,28 @@ onUiLoaded(function () {
         .length - 2;
 
     if (!executedAfterScripts && existingSearchfields >= neededSearchfields) {
-      mutationObserver.disconnect();
+      extraNetworksMutationObserver.disconnect();
       executedAfterScripts = true;
       scheduleAfterScriptsCallbacks();
     }
   });
-  mutationObserver.observe(gradioApp(), { childList: true, subtree: true });
+
+  // Track observer for cleanup
+  if (window.memoryManager) {
+    window.memoryManager.trackObserver(extraNetworksMutationObserver);
+  }
+
+  extraNetworksMutationObserver.observe(gradioApp(), { childList: true, subtree: true });
+
+  // Cleanup on page unload if still active
+  const cleanup = () => {
+    if (extraNetworksMutationObserver) {
+      extraNetworksMutationObserver.disconnect();
+    }
+  };
+
+  window.addEventListener('beforeunload', cleanup);
+  window.addEventListener('pagehide', cleanup);
 });
 
 uiAfterScriptsCallbacks.push(setupExtraNetworks);

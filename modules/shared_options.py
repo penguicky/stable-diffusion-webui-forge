@@ -293,6 +293,8 @@ options_templates.update(options_section(('extra_networks', "Extra Networks", "s
     "extra_networks_tree_view_default_enabled": OptionInfo(True, "Show the Extra Networks directory view by default").needs_reload_ui(),
     "extra_networks_tree_view_default_width": OptionInfo(180, "Default width for the Extra Networks directory tree view", gr.Number).needs_reload_ui(),
     "extra_networks_add_text_separator": OptionInfo(", ", "Extra networks separator").info("extra text to add before <...> when adding extra network to prompt"),
+    "extra_networks_preserve_line_breaks": OptionInfo(True, "Preserve line breaks when removing extra networks").info("when disabled, line breaks will be collapsed to spaces during cleanup (legacy behavior)"),
+    "extra_networks_disable_autoformatting": OptionInfo(False, "Disable all autoformatting when removing extra networks").info("when enabled, no text cleanup will be performed - only the network tags and activation phrases will be removed"),
     "ui_extra_networks_tab_reorder": OptionInfo("", "Extra networks tab order").needs_reload_ui(),
     "textual_inversion_print_at_load": OptionInfo(False, "Print a list of Textual Inversion embeddings when loading model"),
     "textual_inversion_add_hashes_to_infotext": OptionInfo(True, "Add Textual Inversion hashes to infotext"),
@@ -333,6 +335,10 @@ options_templates.update(options_section(('ui_alternatives', "UI alternatives", 
     "txt2img_settings_accordion": OptionInfo(False, "Settings in txt2img hidden under Accordion").needs_reload_ui(),
     "img2img_settings_accordion": OptionInfo(False, "Settings in img2img hidden under Accordion").needs_reload_ui(),
     "interrupt_after_current": OptionInfo(True, "Don't Interrupt in the middle").info("when using Interrupt button, if generating more than one image, stop after the generation of an image has finished, instead of immediately"),
+}))
+
+options_templates.update(options_section(('text_processing', "Text Processing", "ui"), {
+    "disable_all_forge_autoformatting": OptionInfo(False, "Disable all Forge autoformatting").info("When enabled, Forge will not perform any text cleanup, whitespace normalization, or formatting changes. Only essential operations (like removing network tags) will be performed. This gives extensions complete control over prompt formatting."),
 }))
 
 options_templates.update(options_section(('ui', "User interface", "ui"), {
