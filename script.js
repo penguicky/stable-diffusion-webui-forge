@@ -16,7 +16,7 @@ if (typeof window.performanceOptimizations === 'undefined') {
         // Register additional real-time elements
         registerRealTimeElement: function(selector) {
             this.realTimeExemptions.add(selector);
-            console.log(`[Performance] Registered real-time element: ${selector}`);
+            // Registered real-time element: ${selector}
         },
 
         // Register element instance as real-time
@@ -115,7 +115,7 @@ if (typeof window.performanceOptimizations === 'undefined') {
             // For real-time elements, add listener directly without optimization
             if (this.isRealTimeElement(element)) {
                 element.addEventListener(eventType, handler, options);
-                console.log(`[Performance] Real-time exemption applied for ${eventType} on`, element);
+                // Real-time exemption applied for ${eventType} on element
                 return;
             }
 
@@ -207,7 +207,7 @@ if (typeof window.performanceOptimizations === 'undefined') {
             }, 100, 'window-resize');
         });
 
-        console.log('[Script] Event optimizations applied');
+        // Event optimizations applied
     }, 2000); // Wait for DOM to be ready
 
     // Start performance monitoring
@@ -225,8 +225,8 @@ if (typeof window.performanceOptimizations === 'undefined') {
         }
     };
 
-    console.log('[Script] Inline performance optimizations loaded and monitoring started');
-    console.log('[Script] Use window.getPerformanceStats() to check performance statistics');
+    // Inline performance optimizations loaded and monitoring started
+    // Use window.getPerformanceStats() to check performance statistics
 }
 
 function gradioApp() {

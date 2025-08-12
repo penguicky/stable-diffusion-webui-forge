@@ -16,7 +16,7 @@ class MemoryManager {
     // Auto-cleanup on page unload
     this.setupAutoCleanup();
     
-    console.log('[MemoryManager] Initialized');
+    // Initialized
   }
 
   /**

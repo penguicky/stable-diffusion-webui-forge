@@ -35,8 +35,12 @@ class PerformanceMonitor {
     // Performance alerts
     this.alertCallbacks = new Set();
     this.alertHistory = [];
-    
-    console.log('[PerformanceMonitor] Initialized with Core Web Vitals tracking');
+
+    // DOM complexity caching for optimization
+    this.cachedNodeCount = null;
+    this.cachedDOMDepth = null;
+
+    // Initialized with Core Web Vitals tracking
   }
 
   /**
@@ -65,7 +69,7 @@ class PerformanceMonitor {
     // Setup interaction monitoring
     this.setupInteractionMonitoring();
     
-    console.log('[PerformanceMonitor] Monitoring started');
+    // Monitoring started
   }
 
   /**
@@ -91,7 +95,7 @@ class PerformanceMonitor {
       this.frameRateMonitor = null;
     }
     
-    console.log('[PerformanceMonitor] Monitoring stopped');
+    // Monitoring stopped
   }
 
   /**
@@ -317,17 +321,125 @@ class PerformanceMonitor {
    * Record DOM complexity
    */
   recordDOMComplexity() {
+    const startTime = performance.now();
+
+    // Use optimized DOM counting with sampling
     const domInfo = {
-      nodeCount: document.querySelectorAll('*').length,
-      depth: this.calculateDOMDepth(),
+      nodeCount: this.optimizedNodeCount(),
+      depth: this.optimizedDOMDepth(),
       timestamp: Date.now()
     };
-    
+
     this.metrics.domComplexity.push(domInfo);
-    
+
+    // Track measurement time for performance monitoring
+    const measurementTime = performance.now() - startTime;
+    this.metrics.domComplexityMeasurementTime = measurementTime;
+
     if (domInfo.nodeCount > this.thresholds.domNodes) {
       this.triggerAlert('DOM', domInfo.nodeCount, `High DOM complexity: ${domInfo.nodeCount} nodes`);
     }
+  }
+
+  /**
+   * Optimized node counting using sampling and caching
+   */
+  optimizedNodeCount() {
+    // Use cached count if available and recent (< 60 seconds)
+    if (this.cachedNodeCount &&
+        Date.now() - this.cachedNodeCount.timestamp < 60000) {
+      return this.cachedNodeCount.count;
+    }
+
+    // Sample-based estimation for large DOMs
+    const bodyChildren = document.body?.children || [];
+    if (bodyChildren.length > 100) {
+      // Sample first 50 elements and estimate
+      const sampleSize = Math.min(50, bodyChildren.length);
+      let sampleCount = 0;
+
+      for (let i = 0; i < sampleSize; i++) {
+        sampleCount += this.countElementNodes(bodyChildren[i]);
+      }
+
+      const estimatedCount = Math.round((sampleCount / sampleSize) * bodyChildren.length);
+
+      // Cache the result
+      this.cachedNodeCount = {
+        count: estimatedCount,
+        timestamp: Date.now()
+      };
+
+      return estimatedCount;
+    }
+
+    // For smaller DOMs, use direct counting but limit scope
+    const count = this.countElementNodes(document.body || document.documentElement);
+
+    this.cachedNodeCount = {
+      count,
+      timestamp: Date.now()
+    };
+
+    return count;
+  }
+
+  /**
+   * Count nodes in a specific element tree
+   */
+  countElementNodes(element) {
+    if (!element) return 0;
+
+    let count = 1; // Count the element itself
+    const children = element.children;
+
+    for (let i = 0; i < children.length; i++) {
+      count += this.countElementNodes(children[i]);
+    }
+
+    return count;
+  }
+
+  /**
+   * Optimized DOM depth calculation
+   */
+  optimizedDOMDepth() {
+    // Use cached depth if available and recent
+    if (this.cachedDOMDepth &&
+        Date.now() - this.cachedDOMDepth.timestamp < 60000) {
+      return this.cachedDOMDepth.depth;
+    }
+
+    const depth = this.calculateDOMDepthOptimized(document.documentElement, 0);
+
+    this.cachedDOMDepth = {
+      depth,
+      timestamp: Date.now()
+    };
+
+    return depth;
+  }
+
+  /**
+   * Optimized DOM depth calculation with early termination
+   */
+  calculateDOMDepthOptimized(element, currentDepth) {
+    if (!element || currentDepth > 50) { // Early termination for very deep DOMs
+      return currentDepth;
+    }
+
+    let maxDepth = currentDepth;
+    const children = element.children;
+
+    // Limit the number of children we traverse
+    const maxChildren = Math.min(children.length, 20);
+
+    for (let i = 0; i < maxChildren; i++) {
+      const childDepth = this.calculateDOMDepthOptimized(children[i], currentDepth + 1);
+      maxDepth = Math.max(maxDepth, childDepth);
+    }
+
+    return maxDepth;
   }
 
   /**
@@ -571,7 +683,7 @@ class PerformanceMonitor {
       }
     });
     
-    console.log('[PerformanceMonitor] Cleanup completed');
+    // Cleanup completed
   }
 }
 
@@ -637,4 +749,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = PerformanceMonitor;
 }
 
-console.log('[PerformanceMonitor] Loaded. Use window.performanceMonitor.startMonitoring() to begin tracking.');
+// Loaded. Use window.performanceMonitor.startMonitoring() to begin tracking.

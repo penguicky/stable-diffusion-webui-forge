@@ -11,6 +11,15 @@ class DOMQueryOptimizer {
     this.maxCacheSize = 100;
     this.observedElements = new Set();
     this.mutationObserver = null;
+
+    // LRU tracking for cache eviction
+    this.accessOrder = new Map();
+    this.cacheStats = {
+      hits: 0,
+      misses: 0,
+      evictions: 0,
+      totalQueries: 0
+    };
     
     // Performance tracking
     this.metrics = {
@@ -24,7 +33,7 @@ class DOMQueryOptimizer {
     this.setupMutationObserver();
     this.setupPeriodicCleanup();
     
-    console.log('[DOMQueryOptimizer] Initialized with intelligent caching');
+    // Initialized with intelligent caching
   }
 
   /**
@@ -41,7 +50,12 @@ class DOMQueryOptimizer {
     // Check cache first
     const cached = this.cache.get(cacheKey);
     if (cached && this.isCacheValid(cached, maxAge)) {
+      // Update access order for LRU
+      this.accessOrder.set(cacheKey, Date.now());
+      cached.accessCount++;
+
       this.metrics.cacheHits++;
+      this.cacheStats.hits++;
       this.updateSelectorStats(selector, performance.now() - startTime, true);
       return cached.elements;
     }
@@ -56,6 +70,8 @@ class DOMQueryOptimizer {
     // Update metrics
     this.metrics.cacheMisses++;
     this.metrics.queriesOptimized++;
+    this.cacheStats.misses++;
+    this.cacheStats.totalQueries++;
     this.updateSelectorStats(selector, queryTime, false);
     this.updateAverageQueryTime(queryTime);
     
@@ -123,7 +139,7 @@ class DOMQueryOptimizer {
     });
     
     const totalTime = performance.now() - startTime;
-    console.log(`[DOMQueryOptimizer] Batch query completed in ${totalTime.toFixed(2)}ms`);
+    // Batch query completed in ${totalTime.toFixed(2)}ms
     
     return results;
   }
@@ -148,12 +164,26 @@ class DOMQueryOptimizer {
    * Cache query results
    */
   cacheResults(cacheKey, selector, elements, context) {
-    // Implement LRU cache behavior
+    // Enforce cache size limit with LRU eviction
     if (this.cache.size >= this.maxCacheSize) {
-      const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      // Find least recently used entry
+      let oldestKey = null;
+      let oldestTime = Date.now();
+
+      for (const [key, entry] of this.accessOrder) {
+        if (entry < oldestTime) {
+          oldestTime = entry;
+          oldestKey = key;
+        }
+      }
+
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+        this.accessOrder.delete(oldestKey);
+        this.cacheStats.evictions++;
+      }
     }
-    
+
     const cacheEntry = {
       elements: Array.from(elements),
       timestamp: Date.now(),
@@ -161,9 +191,10 @@ class DOMQueryOptimizer {
       context,
       accessCount: 1
     };
-    
+
     this.cache.set(cacheKey, cacheEntry);
-    
+    this.accessOrder.set(cacheKey, Date.now());
+
     // Start observing elements for changes
     this.observeElements(elements);
   }
@@ -240,7 +271,7 @@ class DOMQueryOptimizer {
           window.memoryManager.trackObserver(this.mutationObserver);
         }
 
-        console.log('[DOMQueryOptimizer] MutationObserver initialized successfully');
+        // MutationObserver initialized successfully
       } catch (error) {
         console.error('[DOMQueryOptimizer] Failed to setup MutationObserver:', error);
       }
@@ -394,11 +425,15 @@ class DOMQueryOptimizer {
           keysToDelete.push(key);
         }
       });
-      keysToDelete.forEach(key => this.cache.delete(key));
+      keysToDelete.forEach(key => {
+        this.cache.delete(key);
+        this.accessOrder.delete(key);
+      });
       console.log(`[DOMQueryOptimizer] Invalidated cache for selector: ${selector}`);
     } else {
       this.cache.clear();
-      console.log('[DOMQueryOptimizer] Cleared all cache');
+      this.accessOrder.clear();
+      // Cleared all cache
     }
   }
 
@@ -406,12 +441,18 @@ class DOMQueryOptimizer {
    * Get performance statistics
    */
   getStats() {
-    const cacheHitRate = this.metrics.cacheHits / (this.metrics.cacheHits + this.metrics.cacheMisses) * 100;
-    
+    const totalCacheRequests = this.cacheStats.hits + this.cacheStats.misses;
+    const cacheHitRate = totalCacheRequests > 0 ? (this.cacheStats.hits / totalCacheRequests * 100) : 0;
+
     return {
       ...this.metrics,
       cacheSize: this.cache.size,
+      maxCacheSize: this.maxCacheSize,
       cacheHitRate: cacheHitRate.toFixed(2) + '%',
+      cacheStats: {
+        ...this.cacheStats,
+        hitRate: cacheHitRate.toFixed(2) + '%'
+      },
       observedElements: this.observedElements.size,
       selectorStats: Object.fromEntries(this.selectorStats),
       recommendations: this.generateRecommendations()
@@ -475,4 +516,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = DOMQueryOptimizer;
 }
 
-console.log('[DOMQueryOptimizer] Loaded. Use window.domQueryOptimizer for optimized DOM queries.');
+// Loaded. Use window.domQueryOptimizer for optimized DOM queries.

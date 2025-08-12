@@ -1,74 +1,137 @@
 let promptTokenCountUpdateFunctions = {};
 
 function update_txt2img_tokens(...args) {
-    // Called from Gradio
+    // Called from Gradio - handles variable number of arguments robustly
     update_token_counter("txt2img_token_button");
     update_token_counter("txt2img_negative_token_button");
-    if (args.length == 2) {
+
+    // Return the appropriate value based on argument count
+    // For 0 args: return empty array
+    // For 1 arg: return the single argument
+    // For 2+ args: return all arguments as array
+    if (args.length === 0) {
+        return [];
+    } else if (args.length === 1) {
         return args[0];
+    } else {
+        return args;
     }
-    return args;
 }
 
 function update_img2img_tokens(...args) {
-    // Called from Gradio
+    // Called from Gradio - handles variable number of arguments robustly
     update_token_counter("img2img_token_button");
     update_token_counter("img2img_negative_token_button");
-    if (args.length == 2) {
+
+    // Return the appropriate value based on argument count
+    // For 0 args: return empty array
+    // For 1 arg: return the single argument
+    // For 2+ args: return all arguments as array
+    if (args.length === 0) {
+        return [];
+    } else if (args.length === 1) {
         return args[0];
+    } else {
+        return args;
     }
-    return args;
 }
 
 function update_token_counter(button_id) {
-    promptTokenCountUpdateFunctions[button_id]?.();
+    try {
+        promptTokenCountUpdateFunctions[button_id]?.();
+    } catch (error) {
+        console.warn(`Token counter update failed for ${button_id}:`, error);
+    }
 }
 
 
 function recalculatePromptTokens(name) {
-    promptTokenCountUpdateFunctions[name]?.();
+    try {
+        promptTokenCountUpdateFunctions[name]?.();
+    } catch (error) {
+        console.warn(`Prompt token recalculation failed for ${name}:`, error);
+    }
 }
 
-function recalculate_prompts_txt2img() {
-    // Called from Gradio
+function recalculate_prompts_txt2img(...args) {
+    // Called from Gradio - handles variable number of arguments robustly
     recalculatePromptTokens('txt2img_prompt');
     recalculatePromptTokens('txt2img_neg_prompt');
-    return Array.from(arguments);
+
+    // Return arguments in a consistent format
+    if (args.length === 0) {
+        return [];
+    } else if (args.length === 1) {
+        return args[0];
+    } else {
+        return args;
+    }
 }
 
-function recalculate_prompts_img2img() {
-    // Called from Gradio
+function recalculate_prompts_img2img(...args) {
+    // Called from Gradio - handles variable number of arguments robustly
     recalculatePromptTokens('img2img_prompt');
     recalculatePromptTokens('img2img_neg_prompt');
-    return Array.from(arguments);
+
+    // Return arguments in a consistent format
+    if (args.length === 0) {
+        return [];
+    } else if (args.length === 1) {
+        return args[0];
+    } else {
+        return args;
+    }
 }
 
 function setupTokenCounting(id, id_counter, id_button) {
-    var prompt = gradioApp().getElementById(id);
-    var counter = gradioApp().getElementById(id_counter);
-    var textarea = gradioApp().querySelector(`#${id} > label > textarea`);
+    try {
+        var prompt = gradioApp().getElementById(id);
+        var counter = gradioApp().getElementById(id_counter);
+        var textarea = gradioApp().querySelector(`#${id} > label > textarea`);
 
-    if (counter.parentElement == prompt.parentElement) {
-        return;
-    }
-
-    prompt.parentElement.insertBefore(counter, prompt);
-    prompt.parentElement.style.position = "relative";
-
-    var func = onEdit(id, textarea, 800, function() {
-        if (counter.classList.contains("token-counter-visible")) {
-            gradioApp().getElementById(id_button)?.click();
+        // Check if elements exist before proceeding
+        if (!prompt || !counter) {
+            console.warn(`Token counting setup failed: missing elements for ${id}`);
+            return;
         }
-    });
-    promptTokenCountUpdateFunctions[id] = func;
-    promptTokenCountUpdateFunctions[id_button] = func;
+
+        if (counter.parentElement == prompt.parentElement) {
+            return;
+        }
+
+        prompt.parentElement.insertBefore(counter, prompt);
+        prompt.parentElement.style.position = "relative";
+
+        var func = onEdit(id, textarea, 800, function() {
+            try {
+                if (counter.classList.contains("token-counter-visible")) {
+                    gradioApp().getElementById(id_button)?.click();
+                }
+            } catch (error) {
+                console.warn(`Token counter click failed for ${id_button}:`, error);
+            }
+        });
+        promptTokenCountUpdateFunctions[id] = func;
+        promptTokenCountUpdateFunctions[id_button] = func;
+    } catch (error) {
+        console.warn(`Token counting setup failed for ${id}:`, error);
+    }
 }
 
 function toggleTokenCountingVisibility(id, id_counter, id_button) {
-    var counter = gradioApp().getElementById(id_counter);
+    try {
+        var counter = gradioApp().getElementById(id_counter);
 
-    counter.style.display = opts.disable_token_counters ? "none" : "block";
-    counter.classList.toggle("token-counter-visible", !opts.disable_token_counters);
+        if (!counter) {
+            console.warn(`Token counter visibility toggle failed: missing counter element ${id_counter}`);
+            return;
+        }
+
+        counter.style.display = opts.disable_token_counters ? "none" : "block";
+        counter.classList.toggle("token-counter-visible", !opts.disable_token_counters);
+    } catch (error) {
+        console.warn(`Token counter visibility toggle failed for ${id_counter}:`, error);
+    }
 }
 
 function runCodeForTokenCounters(fun) {

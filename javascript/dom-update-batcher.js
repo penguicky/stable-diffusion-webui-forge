@@ -24,7 +24,7 @@ class DOMUpdateBatcher {
     // Frame budget (16ms for 60fps)
     this.frameBudget = 16;
     
-    console.log('[DOMUpdateBatcher] Initialized with read/write separation');
+    // Initialized with read/write separation
   }
 
   /**
@@ -412,4 +412,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = DOMUpdateBatcher;
 }
 
-console.log('[DOMUpdateBatcher] Loaded. Use window.domUpdateBatcher for batched DOM operations.');
+// Loaded. Use window.domUpdateBatcher for batched DOM operations.

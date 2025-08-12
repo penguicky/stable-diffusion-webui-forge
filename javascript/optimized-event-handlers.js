@@ -9,16 +9,22 @@ class OptimizedEventHandlers {
     this.throttledHandlers = new Map();
     this.passiveEvents = new Set(['scroll', 'wheel', 'touchstart', 'touchmove', 'touchend']);
     this.activeHandlers = new Map();
-    
+
+    // Enhanced tracking for deduplication
+    this.handlerRegistry = new Map(); // Track handlers by element+event combination
+    this.cleanupCallbacks = new Map(); // Track cleanup functions
+
     // Performance tracking
     this.metrics = {
       handlersCreated: 0,
       eventsProcessed: 0,
       eventsSkipped: 0,
-      averageProcessingTime: 0
+      averageProcessingTime: 0,
+      handlersDeduped: 0,
+      handlersRemoved: 0
     };
-    
-    console.log('[OptimizedEventHandlers] Initialized');
+
+    // Initialized
   }
 
   /**
@@ -30,15 +36,37 @@ class OptimizedEventHandlers {
    * @param {Object} options - Event listener options
    */
   addThrottledHandler(element, event, handler, delay = 16, options = {}) {
-    const key = this.generateKey(element, event, delay);
-    
-    if (this.activeHandlers.has(key)) {
-      console.warn('[OptimizedEventHandlers] Handler already exists for:', key);
-      return this.activeHandlers.get(key).cleanup;
+    // Use adaptive delay if available and not forced
+    let finalDelay = delay;
+    if (!options.forceDelay && window.getAdaptiveDelay) {
+      try {
+        finalDelay = window.getAdaptiveDelay(event);
+      } catch (e) {
+        console.warn('[OptimizedEventHandlers] Adaptive delay failed, using default:', e);
+        finalDelay = delay;
+      }
+    }
+
+    const key = this.generateKey(element, event, finalDelay);
+    const registryKey = this.generateRegistryKey(element, event);
+
+    // Check if handler already exists for this element+event combination
+    if (this.handlerRegistry.has(registryKey)) {
+      const existingHandler = this.handlerRegistry.get(registryKey);
+
+      // If same delay, return existing cleanup
+      if (existingHandler.delay === finalDelay && existingHandler.type === 'throttled') {
+        this.metrics.handlersDeduped++;
+        return existingHandler.cleanup;
+      }
+
+      // Different delay - remove old handler first
+      existingHandler.cleanup();
+      this.metrics.handlersRemoved++;
     }
 
     // Create throttled wrapper
-    const throttledHandler = this.createThrottledHandler(handler, delay, event);
+    const throttledHandler = this.createThrottledHandler(handler, finalDelay, event);
     
     // Set passive option for performance-critical events
     const eventOptions = {
@@ -49,6 +77,15 @@ class OptimizedEventHandlers {
     // Add event listener
     element.addEventListener(event, throttledHandler, eventOptions);
     
+    // Create cleanup function
+    const cleanup = () => {
+      element.removeEventListener(event, throttledHandler, eventOptions);
+      this.activeHandlers.delete(key);
+      this.handlerRegistry.delete(registryKey);
+      this.cleanupCallbacks.delete(key);
+      this.metrics.handlersRemoved++;
+    };
+
     // Track for cleanup
     const handlerInfo = {
       element,
@@ -57,11 +94,14 @@ class OptimizedEventHandlers {
       originalHandler: handler,
       options: eventOptions,
       type: 'throttled',
-      delay,
-      cleanup: () => this.removeHandler(key)
+      delay: finalDelay,
+      adaptiveDelay: finalDelay !== delay,
+      cleanup
     };
-    
+
     this.activeHandlers.set(key, handlerInfo);
+    this.handlerRegistry.set(registryKey, handlerInfo);
+    this.cleanupCallbacks.set(key, cleanup);
     this.throttledHandlers.set(key, throttledHandler);
     this.metrics.handlersCreated++;
     
@@ -82,19 +122,53 @@ class OptimizedEventHandlers {
    * @param {Object} options - Event listener options
    */
   addDebouncedHandler(element, event, handler, delay = 300, options = {}) {
-    const key = this.generateKey(element, event, delay);
-    
-    if (this.activeHandlers.has(key)) {
-      console.warn('[OptimizedEventHandlers] Handler already exists for:', key);
-      return this.activeHandlers.get(key).cleanup;
+    // Use adaptive delay if available and not forced
+    let finalDelay = delay;
+    if (!options.forceDelay && window.getAdaptiveDelay) {
+      try {
+        const adaptiveDelay = window.getAdaptiveDelay(event);
+        // For debounce, use the larger of adaptive or original delay
+        finalDelay = Math.max(adaptiveDelay, delay);
+      } catch (e) {
+        console.warn('[OptimizedEventHandlers] Adaptive delay failed, using default:', e);
+        finalDelay = delay;
+      }
+    }
+
+    const key = this.generateKey(element, event, finalDelay);
+    const registryKey = this.generateRegistryKey(element, event);
+
+    // Check if handler already exists for this element+event combination
+    if (this.handlerRegistry.has(registryKey)) {
+      const existingHandler = this.handlerRegistry.get(registryKey);
+
+      // If same delay, return existing cleanup
+      if (existingHandler.delay === finalDelay && existingHandler.type === 'debounced') {
+        this.metrics.handlersDeduped++;
+        return existingHandler.cleanup;
+      }
+
+      // Different delay - remove old handler first
+      existingHandler.cleanup();
+      this.metrics.handlersRemoved++;
     }
 
     // Create debounced wrapper
-    const debouncedHandler = this.createDebouncedHandler(handler, delay, event);
+    const debouncedHandler = this.createDebouncedHandler(handler, finalDelay, event);
     
     // Add event listener
     element.addEventListener(event, debouncedHandler, options);
     
+    // Create cleanup function
+    const cleanup = () => {
+      element.removeEventListener(event, debouncedHandler, options);
+      this.activeHandlers.delete(key);
+      this.handlerRegistry.delete(registryKey);
+      this.cleanupCallbacks.delete(key);
+      this.debouncedHandlers.delete(key);
+      this.metrics.handlersRemoved++;
+    };
+
     // Track for cleanup
     const handlerInfo = {
       element,
@@ -103,11 +177,14 @@ class OptimizedEventHandlers {
       originalHandler: handler,
       options,
       type: 'debounced',
-      delay,
-      cleanup: () => this.removeHandler(key)
+      delay: finalDelay,
+      adaptiveDelay: finalDelay !== delay,
+      cleanup
     };
-    
+
     this.activeHandlers.set(key, handlerInfo);
+    this.handlerRegistry.set(registryKey, handlerInfo);
+    this.cleanupCallbacks.set(key, cleanup);
     this.debouncedHandlers.set(key, debouncedHandler);
     this.metrics.handlersCreated++;
     
@@ -200,8 +277,46 @@ class OptimizedEventHandlers {
    * Generate unique key for handler tracking
    */
   generateKey(element, event, delay) {
-    const elementId = element.id || element.tagName || 'unknown';
+    // Handle window object specially
+    if (element === window) {
+      return `window-${event}-${delay}`;
+    }
+
+    // Handle document object specially
+    if (element === document) {
+      return `document-${event}-${delay}`;
+    }
+
+    // Handle regular DOM elements
+    const elementId = element.id || element.tagName || element.constructor?.name || 'unknown';
     return `${elementId}-${event}-${delay}`;
+  }
+
+  /**
+   * Generate registry key for element+event combination (without delay)
+   */
+  generateRegistryKey(element, event) {
+    // Handle window object specially
+    if (element === window) {
+      return `window-${event}`;
+    }
+
+    // Handle document object specially
+    if (element === document) {
+      return `document-${event}`;
+    }
+
+    // Handle regular DOM elements
+    if (element && typeof element.getAttribute === 'function') {
+      const elementId = element.id ||
+                       element.getAttribute('data-handler-id') ||
+                       `${element.tagName}_${Array.from(element.parentNode?.children || []).indexOf(element)}`;
+      return `${elementId}-${event}`;
+    }
+
+    // Fallback for other objects
+    const elementId = element.id || element.constructor?.name || 'unknown';
+    return `${elementId}-${event}`;
   }
 
   /**
@@ -292,6 +407,53 @@ class OptimizedEventHandlers {
       });
     });
   }
+
+  /**
+   * Comprehensive cleanup of all handlers
+   */
+  cleanup() {
+    // Clean up all active handlers
+    this.cleanupCallbacks.forEach(cleanup => {
+      try {
+        cleanup();
+      } catch (e) {
+        console.warn('[OptimizedEventHandlers] Cleanup error:', e);
+      }
+    });
+
+    // Clear all tracking maps
+    this.activeHandlers.clear();
+    this.handlerRegistry.clear();
+    this.cleanupCallbacks.clear();
+    this.debouncedHandlers.clear();
+    this.throttledHandlers.clear();
+
+    // Reset metrics
+    this.metrics = {
+      handlersCreated: 0,
+      eventsProcessed: 0,
+      eventsSkipped: 0,
+      averageProcessingTime: 0,
+      handlersDeduped: 0,
+      handlersRemoved: 0
+    };
+  }
+
+  /**
+   * Get enhanced statistics
+   */
+  getStats() {
+    return {
+      ...this.metrics,
+      activeHandlers: this.activeHandlers.size,
+      registeredElements: this.handlerRegistry.size,
+      memoryUsage: {
+        activeHandlers: this.activeHandlers.size,
+        handlerRegistry: this.handlerRegistry.size,
+        cleanupCallbacks: this.cleanupCallbacks.size
+      }
+    };
+  }
 }
 
 // Create global instance
@@ -309,4 +471,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = OptimizedEventHandlers;
 }
 
-console.log('[OptimizedEventHandlers] Loaded. Use window.optimizedEventHandlers for optimized event handling.');
+// Loaded. Use window.optimizedEventHandlers for optimized event handling.

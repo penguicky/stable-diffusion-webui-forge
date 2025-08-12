@@ -434,4 +434,4 @@ if (window.location.search.includes('run-memory-tests')) {
   window.memoryLeakTester.runTests();
 }
 
-console.log('[MemoryTester] Loaded. Run window.memoryLeakTester.runTests() to start testing.');
+// Loaded. Run window.memoryLeakTester.runTests() to start testing.

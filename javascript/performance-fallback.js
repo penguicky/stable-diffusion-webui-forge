@@ -12,7 +12,7 @@ class PerformanceFallback {
       domCache: new Map()
     };
     
-    console.log('[PerformanceFallback] Fallback system initialized');
+    // Fallback system initialized
   }
 
   /**
@@ -242,7 +242,7 @@ setTimeout(() => {
     console.warn('[PerformanceFallback] Main performance systems not detected, activating fallback');
     window.performanceFallback.activate();
   } else {
-    console.log('[PerformanceFallback] Main systems detected, fallback not needed');
+    // Main systems detected, fallback not needed
   }
 }, 5000); // Wait 5 seconds for main systems to load
 
@@ -251,4 +251,4 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = PerformanceFallback;
 }
 
-console.log('[PerformanceFallback] Loaded. Will activate automatically if main systems fail.');
+// Loaded. Will activate automatically if main systems fail.
