@@ -139,21 +139,27 @@
 
     // Fix 5: Add general error boundary for UI operations
     function addErrorBoundary() {
-        // TEMPORARILY DISABLED - Unhandled promise rejection suppression
+        // Error boundary for unhandled promise rejections
         window.addEventListener('unhandledrejection', function(event) {
             const error = event.reason;
             const message = error?.message || error?.toString() || 'Unknown error';
 
-            console.log('[DEBUG] Unhandled promise rejection:', message, error);
-            // Allow all errors to be logged normally for debugging
+            // Only log significant errors, filter out noise
+            if (!message.includes('ResizeObserver') &&
+                !message.includes('Non-Error promise rejection')) {
+                console.warn('[UI Error Boundary] Unhandled promise rejection:', message);
+            }
         });
 
-        // TEMPORARILY DISABLED - General error suppression
+        // General error boundary
         window.addEventListener('error', function(event) {
             const message = event.message || '';
 
-            console.log('[DEBUG] General error caught:', message, event);
-            // Allow all errors to be logged normally for debugging
+            // Filter out common non-critical errors
+            if (!message.includes('ResizeObserver') &&
+                !message.includes('Script error')) {
+                console.warn('[UI Error Boundary] Error caught:', message);
+            }
         });
     }
 
@@ -190,25 +196,14 @@
         };
     }
 
-    // TEMPORARILY DISABLED - Yargs error interception
-    function interceptYargsErrors() {
-        console.log('[DEBUG] Yargs error interception DISABLED for debugging');
-        // All yargs error interception is disabled
-    }
-
     // Initialize all fixes
     function initializeWarningsFixes() {
-        console.debug('[Console Warnings Fix] Initializing...');
-
         suppressTauriWarnings();
         enhanceConsoleFiltering();
         enhanceTabSelection();
         enhanceGradioEndpoints();
         addErrorBoundary();
         enhanceDOMSafety();
-        interceptYargsErrors();
-
-        console.debug('[Console Warnings Fix] Initialized successfully');
     }
 
     // Run fixes when DOM is ready
