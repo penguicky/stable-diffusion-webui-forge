@@ -8,23 +8,14 @@ function set_theme(theme) {
 }
 
 function all_gallery_buttons() {
-    // Use optimized DOM query with caching
-    const selector = '[style="display: block;"].tabitem div[id$=_gallery].gradio-gallery .thumbnails > .thumbnail-item.thumbnail-small';
-
-    if (window.performanceOptimizations) {
-        const allGalleryButtons = window.performanceOptimizations.querySelector(selector, 2000); // 2 second cache
-        return Array.from(allGalleryButtons).filter(elem => elem.offsetParent !== null);
-    } else {
-        // Fallback to original implementation
-        var allGalleryButtons = gradioApp().querySelectorAll(selector);
-        var visibleGalleryButtons = [];
-        allGalleryButtons.forEach(function(elem) {
-            if (elem.parentElement.offsetParent) {
-                visibleGalleryButtons.push(elem);
-            }
-        });
-        return visibleGalleryButtons;
-    }
+    var allGalleryButtons = gradioApp().querySelectorAll('[style="display: block;"].tabitem div[id$=_gallery].gradio-gallery .thumbnails > .thumbnail-item.thumbnail-small');
+    var visibleGalleryButtons = [];
+    allGalleryButtons.forEach(function(elem) {
+        if (elem.parentElement.offsetParent) {
+            visibleGalleryButtons.push(elem);
+        }
+    });
+    return visibleGalleryButtons;
 }
 
 function selected_gallery_button() {

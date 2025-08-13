@@ -46,39 +46,7 @@
         originalError.apply(console, args);
     };
 
-    // Prevent unsafe extension button clicks
-    let clickCount = 0;
-    let sources = new Map();
-
-    const originalClick = HTMLElement.prototype.click;
-    HTMLElement.prototype.click = function() {
-        if (this.tagName === 'BUTTON' && 
-            (this.classList.contains('forge-no-select') ||
-             this.classList.contains('hidden') ||
-             this.style.display === 'none' ||
-             !this.offsetParent ||
-             this.disabled)) {
-            
-            const stack = new Error().stack;
-            let source = 'unknown';
-            
-            if (stack.includes('sd-webui-lobe-theme')) {
-                source = 'Lobe-Theme';
-            } else if (stack.includes('sd-webui-tabs-extension')) {
-                source = 'Tabs-Extension';
-            } else if (stack.includes('state.utils.triggerEvent')) {
-                source = 'triggerEvent';
-            }
-            
-            clickCount++;
-            sources.set(source, (sources.get(source) || 0) + 1);
-            
-            // Silent prevention - no logging to avoid spam
-            return; // Prevent the click
-        }
-        
-        return originalClick.call(this);
-    };
+    // Click patch removed - was interfering with Lobe Theme tab functionality
 
     // Create performance system mocks to prevent errors
     window.memoryManager = {
