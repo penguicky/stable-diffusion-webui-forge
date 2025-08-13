@@ -61,14 +61,124 @@ function extract_image_from_gallery(gallery) {
 window.args_to_array = Array.from; // Compatibility with e.g. extensions that may expect this to be around
 
 function switch_to_txt2img() {
-    gradioApp().querySelector('#tabs').querySelectorAll('button')[0].click();
+    try {
+        const app = gradioApp();
+        if (!app) {
+            console.debug('[UI] gradioApp not ready for switch_to_txt2img');
+            return Array.from(arguments);
+        }
+
+        const tabsContainer = app.querySelector('#tabs');
+        if (!tabsContainer) {
+            console.debug('[UI] #tabs container not found');
+            return Array.from(arguments);
+        }
+
+        const buttons = tabsContainer.querySelectorAll('button');
+        const targetButton = buttons[0];
+
+        if (!targetButton) {
+            console.debug('[UI] txt2img tab button not found');
+            return Array.from(arguments);
+        }
+
+        // Enhanced readiness check
+        const isReady = targetButton.offsetParent !== null &&
+                       !targetButton.disabled &&
+                       !targetButton.classList.contains('loading') &&
+                       targetButton.style.display !== 'none';
+
+        if (!isReady) {
+            // Use a more patient retry approach
+            let attempts = 0;
+            const checkReady = () => {
+                attempts++;
+                const nowReady = targetButton.offsetParent !== null &&
+                               !targetButton.disabled &&
+                               !targetButton.classList.contains('loading') &&
+                               targetButton.style.display !== 'none';
+
+                if (nowReady) {
+                    targetButton.click();
+                } else if (attempts < 5) {
+                    setTimeout(checkReady, 200 * attempts); // Increasing delay
+                }
+                // If still not ready after 5 attempts, silently give up
+            };
+            setTimeout(checkReady, 100);
+        } else {
+            targetButton.click();
+        }
+    } catch (error) {
+        console.debug('[UI] Error in switch_to_txt2img:', error);
+    }
 
     return Array.from(arguments);
 }
 
 function switch_to_img2img_tab(no) {
-    gradioApp().querySelector('#tabs').querySelectorAll('button')[1].click();
-    gradioApp().getElementById('mode_img2img').querySelectorAll('button')[no].click();
+    try {
+        const app = gradioApp();
+        if (!app) {
+            console.debug('[UI] gradioApp not ready for switch_to_img2img_tab');
+            return;
+        }
+
+        // First switch to img2img main tab
+        const tabsContainer = app.querySelector('#tabs');
+        if (tabsContainer) {
+            const buttons = tabsContainer.querySelectorAll('button');
+            const img2imgButton = buttons[1];
+
+            if (img2imgButton) {
+                const isReady = img2imgButton.offsetParent !== null &&
+                               !img2imgButton.disabled &&
+                               !img2imgButton.classList.contains('loading') &&
+                               img2imgButton.style.display !== 'none';
+
+                if (isReady) {
+                    img2imgButton.click();
+                } else {
+                    // Patient retry for img2img
+                    let attempts = 0;
+                    const checkReady = () => {
+                        attempts++;
+                        const nowReady = img2imgButton.offsetParent !== null &&
+                                       !img2imgButton.disabled &&
+                                       !img2imgButton.classList.contains('loading') &&
+                                       img2imgButton.style.display !== 'none';
+
+                        if (nowReady) {
+                            img2imgButton.click();
+                        } else if (attempts < 5) {
+                            setTimeout(checkReady, 200 * attempts);
+                        }
+                    };
+                    setTimeout(checkReady, 100);
+                }
+            }
+        }
+
+        // Then switch to specific sub-tab if specified
+        if (typeof no !== 'undefined') {
+            const modeContainer = app.getElementById('mode_img2img');
+            if (modeContainer) {
+                const modeButtons = modeContainer.querySelectorAll('button');
+                const targetModeButton = modeButtons[no];
+
+                if (targetModeButton) {
+                    // Add a small delay to ensure main tab switch completes
+                    setTimeout(() => {
+                        if (targetModeButton.offsetParent !== null && !targetModeButton.disabled) {
+                            targetModeButton.click();
+                        }
+                    }, 150);
+                }
+            }
+        }
+    } catch (error) {
+        console.debug('[UI] Error in switch_to_img2img_tab:', error);
+    }
 }
 function switch_to_img2img() {
     switch_to_img2img_tab(0);
@@ -91,7 +201,41 @@ function switch_to_inpaint_sketch() {
 }
 
 function switch_to_extras() {
-    gradioApp().querySelector('#tabs').querySelectorAll('button')[3].click();
+    try {
+        const app = gradioApp();
+        if (!app) {
+            console.debug('[UI] gradioApp not ready for switch_to_extras');
+            return Array.from(arguments);
+        }
+
+        const tabsContainer = app.querySelector('#tabs');
+        if (!tabsContainer) {
+            console.debug('[UI] #tabs container not found');
+            return Array.from(arguments);
+        }
+
+        const buttons = tabsContainer.querySelectorAll('button');
+        const extrasButton = buttons[3];
+
+        if (!extrasButton) {
+            console.debug('[UI] extras tab button not found');
+            return Array.from(arguments);
+        }
+
+        // Check if button is ready for interaction
+        if (extrasButton.offsetParent === null || extrasButton.disabled) {
+            console.debug('[UI] extras tab button not ready, deferring click');
+            setTimeout(() => {
+                if (extrasButton.offsetParent !== null && !extrasButton.disabled) {
+                    extrasButton.click();
+                }
+            }, 100);
+        } else {
+            extrasButton.click();
+        }
+    } catch (error) {
+        console.debug('[UI] Error in switch_to_extras:', error);
+    }
 
     return Array.from(arguments);
 }

@@ -75,12 +75,13 @@ class PerformanceFallback {
   querySelector(selector, maxAge = 5000) {
     const cacheKey = selector;
     const cached = this.basicOptimizations.domCache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < maxAge) {
       return cached.elements;
     }
-    
-    const elements = document.querySelectorAll(selector);
+
+    // Use the original querySelectorAll to prevent recursion
+    const elements = this.originalQuerySelectorAll.call(document, selector);
     this.basicOptimizations.domCache.set(cacheKey, {
       elements: Array.from(elements),
       timestamp: Date.now()
@@ -156,15 +157,15 @@ class PerformanceFallback {
    * Setup basic DOM caching
    */
   setupBasicDOMCaching() {
-    // Override querySelector methods
-    const originalQuerySelector = Document.prototype.querySelector;
-    const originalQuerySelectorAll = Document.prototype.querySelectorAll;
-    
+    // Store original methods to prevent recursion
+    this.originalQuerySelector = Document.prototype.querySelector;
+    this.originalQuerySelectorAll = Document.prototype.querySelectorAll;
+
     Document.prototype.querySelector = function(selector) {
       const results = window.performanceFallback.querySelector(selector);
       return results.length > 0 ? results[0] : null;
     };
-    
+
     Document.prototype.querySelectorAll = function(selector) {
       return window.performanceFallback.querySelector(selector);
     };

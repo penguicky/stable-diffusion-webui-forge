@@ -690,6 +690,7 @@ class PerformanceMonitor {
 /**
  * Frame Rate Monitor Helper Class
  */
+if (!window.FrameRateMonitor) {
 class FrameRateMonitor {
   constructor(callback) {
     this.callback = callback;
@@ -732,6 +733,10 @@ class FrameRateMonitor {
     
     this.rafId = requestAnimationFrame(() => this.tick());
   }
+}
+
+// Make FrameRateMonitor globally available
+window.FrameRateMonitor = FrameRateMonitor;
 }
 
 // Create global instance

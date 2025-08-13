@@ -127,6 +127,8 @@
                         return result !== undefined ? result : args;
                     }
                 } catch (error) {
+                    // TEMPORARILY DISABLED - Show all errors for debugging
+                    console.log(`[DEBUG] GradioFunction error in ${functionName}:`, error);
                     console.warn(`[GradioFunction] Error in ${functionName}:`, error);
                     // Return safe fallback
                     return args.length <= 1 ? (args[0] || []) : args;
@@ -137,40 +139,21 @@
 
     // Fix 5: Add general error boundary for UI operations
     function addErrorBoundary() {
-        // Catch unhandled promise rejections
+        // TEMPORARILY DISABLED - Unhandled promise rejection suppression
         window.addEventListener('unhandledrejection', function(event) {
             const error = event.reason;
             const message = error?.message || error?.toString() || 'Unknown error';
-            
-            // Filter out known non-critical errors
-            if (message.includes('Too many arguments provided for the endpoint') ||
-                message.includes('Could not find "window.__TAURI_METADATA__"') ||
-                message.includes('Splitpanes: Could not resize panes') ||
-                message.includes('non-interactive or hidden tab')) {
-                
-                console.debug('[Non-critical error caught]:', message);
-                event.preventDefault(); // Prevent the error from being logged as unhandled
-                return;
-            }
-            
-            // Log other errors normally
-            console.error('[Unhandled Promise Rejection]:', error);
+
+            console.log('[DEBUG] Unhandled promise rejection:', message, error);
+            // Allow all errors to be logged normally for debugging
         });
 
-        // Catch general errors
+        // TEMPORARILY DISABLED - General error suppression
         window.addEventListener('error', function(event) {
             const message = event.message || '';
-            
-            // Filter out known non-critical errors
-            if (message.includes('Too many arguments provided for the endpoint') ||
-                message.includes('Could not find "window.__TAURI_METADATA__"') ||
-                message.includes('Splitpanes: Could not resize panes') ||
-                message.includes('non-interactive or hidden tab')) {
-                
-                console.debug('[Non-critical error caught]:', message);
-                event.preventDefault();
-                return;
-            }
+
+            console.log('[DEBUG] General error caught:', message, event);
+            // Allow all errors to be logged normally for debugging
         });
     }
 
@@ -207,17 +190,24 @@
         };
     }
 
+    // TEMPORARILY DISABLED - Yargs error interception
+    function interceptYargsErrors() {
+        console.log('[DEBUG] Yargs error interception DISABLED for debugging');
+        // All yargs error interception is disabled
+    }
+
     // Initialize all fixes
     function initializeWarningsFixes() {
         console.debug('[Console Warnings Fix] Initializing...');
-        
+
         suppressTauriWarnings();
         enhanceConsoleFiltering();
         enhanceTabSelection();
         enhanceGradioEndpoints();
         addErrorBoundary();
         enhanceDOMSafety();
-        
+        interceptYargsErrors();
+
         console.debug('[Console Warnings Fix] Initialized successfully');
     }
 
